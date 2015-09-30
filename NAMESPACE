@@ -1,2 +1,4 @@
-useDynLib(myClibrary)
-export(myRwrapper)
+useDynLib(weighted_pca)
+export(weighted_pca)
+useDynLib(covariance_weighted)
+export(covariance_weighted)
