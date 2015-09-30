@@ -1,4 +1,4 @@
-useDynLib(weighted_pca)
+useDynLib(W3D)
 export(weighted_pca)
-useDynLib(covariance_weighted)
-export(covariance_weighted)
+exportPattern("*_wgt")
+import(RColorBrewer)
