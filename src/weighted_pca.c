@@ -156,8 +156,7 @@ void PCA_WGT (double* y, double* w, int* Ng, int* Nc, double* e, int* Nf, int* m
 			count++;
 			if (count > used_steps) {used_steps = count;}
 			if (count > *max_steps) {
-				fprintf(stderr, "Algorithm did not converge within specified number of steps.\n");
-				exit(1);
+				error("Algorithm did not converge within specified number of steps.\n");
 			}
 		}
 		// Store result
@@ -175,5 +174,7 @@ void PCA_WGT (double* y, double* w, int* Ng, int* Nc, double* e, int* Nf, int* m
 			}
 		}
 	}
+	free(a); free(last_a);
+	free(b); free(last_b);
 	*max_steps = used_steps;
 }
