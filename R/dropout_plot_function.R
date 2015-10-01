@@ -3,7 +3,7 @@
 bg__dropout_plot_base <- function (norm, weights = 1, xlim = NA) {
 	require("RColorBrewer")
 	
-	gene_info = calc_variables(norm,weights);
+	gene_info = bg__calc_variables(norm,weights);
 
         xes = log(gene_info$s)/log(10);
         put_in_order = order(xes);
@@ -15,9 +15,9 @@ bg__dropout_plot_base <- function (norm, weights = 1, xlim = NA) {
 
         par(fg="black")
 	if (!is.na(xlim)) {
-        	plot(xes,gene_info$p, main=name, ylab="Dropout Proportion", xlab="log(expression)", col = dens.col,pch=16, xlim=xlim, ylim=c(0,1))
+        	plot(xes,gene_info$p, main="", ylab="Dropout Proportion", xlab="log(expression)", col = dens.col,pch=16, xlim=xlim, ylim=c(0,1))
 	} else {
-        	plot(xes,gene_info$p, main=name, ylab="Dropout Proportion", xlab="log(expression)", col = dens.col,pch=16)
+        	plot(xes,gene_info$p, main="", ylab="Dropout Proportion", xlab="log(expression)", col = dens.col,pch=16)
 	}
 	return(list(P=gene_info$p, S=gene_info$s, xes=xes, data=norm, weights=weights, order=put_in_order));
 }
@@ -44,7 +44,7 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
 	require("RColorBrewer")
 	require("gplots")
 	if(!is.numeric(genes)) {
-		genes = match(genes, rownames(base_plot));
+		genes = match(genes, rownames(data));
 		nomatch = sum(is.na(genes));
 		if (nomatch > 0) {warning(paste(nomatch, " genes could not be matched to data, they will not be included in the heatmap."));}
 		genes = genes[!is.na(genes)];
@@ -76,14 +76,14 @@ bg__calc_variables <- function(norm, weights = 1) {
 		p = rowZero_wgt(norm,weights)/rowSums(weights);
         	s = rowMeans_wgt(norm,weights);
 		s_stderr = sqrt(rowVar_wgt(norm,weights))/sqrt(rowSums(weights));
-		p_stderr = sqrt(p_obs*(1-p_obs)/rowSums(weights));
+		p_stderr = sqrt(p*(1-p)/rowSums(weights));
 	} else {
 		print("Weights not provided or not same dimension as expression matrix. Using unweighted version.")
 	        p = apply(norm,1,function(x){y = x[!is.na(x)]; sum(y==0)/length(y)});
 	        s = rowMeans(norm, na.rm=T);
 		s_stderr = unlist(apply(norm,1,sd));
 		s_stderr = unlist(apply(norm,1,sd))/sqrt(length(norm[1,]));
-		p_stderr = sqrt(p_obs*(1-p_obs)/length(norm[1,]));
+		p_stderr = sqrt(p*(1-p)/length(norm[1,]));
 	}
 	names(s) = rownames(norm);
 	names(p) = rownames(norm);
@@ -101,7 +101,7 @@ bg__fit_MM <- function (p,s) {
 	Kerr = exp(Kcoeff+Kerr)-exp(Kcoeff)
         predicted = fitted(fit)
         krt=summary(fit)$parameters[1,1]
-	return(list(K=krt,Kerr=Kerr,predictions=predicted, model=c("MMenton",paste("Krt =",round(krt,digits=3))),SSr=round(sum((residuals(doubleXfit))^2)),SAr=round(sum(abs(residuals(doubleXfit))))))
+	return(list(K=krt,Kerr=Kerr,predictions=predicted, model=c("MMenton",paste("Krt =",round(krt,digits=3))),SSr=round(sum((residuals(fit))^2)),SAr=round(sum(abs(residuals(fit))))))
 }
 bg__fit_logistic <- function(p,s) {
         logistic = glm(p~log(s),family="binomial")
@@ -152,6 +152,7 @@ bg__filter_cells <- function(data,labels=NA, suppress.plot=FALSE) {
 bg__normalize <- function(data) {
 	# Combine UQ and detection rate adjusted normalization 
 	# Stephanie Hick, Mingziang Teng, Rafael A Irizarry "On the widespread and critical impact of systematic single-cell RNA-Seq data" http://dx.doi.org/10.1101/025528 
+	cell_zero = apply(data,2, bg__num.zero)/length(data[,1]);
 	uq = unlist(apply(data,2,bg__UQ));
 	normfactor = (uq/median(uq)) * (median(cell_zero)/cell_zero); 
 	data = t(t(data)/normfactor);
@@ -192,7 +193,7 @@ bg__test_DE_S_equiv <- function (norm, weights=1, fit=NA, method="propagate") {
 	S_mean = gene_info$s
 	S_err = gene_info$s_stderr
 	K_err = fit$Kerr;
-	S_equiv = bg__invert_model(fit$K,p_obs);
+	S_equiv = bg__invert_MM(fit$K,p_obs);
 
 	## Monte Carlo method to estimate error around S_equiv ##
 	MC_err <- function (p_base) {
@@ -200,7 +201,7 @@ bg__test_DE_S_equiv <- function (norm, weights=1, fit=NA, method="propagate") {
 		p_rand = p_rand[p_rand > 0 & p_rand < 1]
 		K_rand = rnorm(length(p_rand),fit$K,sd = K_err);
 		K_rand[K_rand < 1] = 1;
-		S_equiv_rand = bg__invert_model(K_rand, p_rand)
+		S_equiv_rand = bg__invert_MM(K_rand, p_rand)
 		sd(S_equiv_rand)
 	}
 	if (method == "MC") {
@@ -225,11 +226,11 @@ bg__get_extreme_residuals <- function (norm,weights, v_threshold=c(0.05,0.95), f
 	mu = mean(res); sigma = sd(res);
 	# deal with potential bi-modality
 	if (sum(res > mu-sigma & res < mu+sigma) < 0.5) { # should be 0.68 theoretically
-		mu = mean(cell_zero[cell_zero > quantile(cell_zero,0.33)]);
-		sigma = sd(cell_zero[cell_zero > quantile(cell_zero,0.33)]);
+		mu = mean(res[res > quantile(res,0.33)]);
+		sigma = sd(res[res > quantile(res,0.33)]);
 	}
 
-	if (direction="right") {
+	if (direction=="right") {
 		pval =pnorm((res-mu)/sigma, lower.tail=F)
 	} else {
 		pval = pnorm((res-mu)/sigma, lower.tail=T)
@@ -241,7 +242,7 @@ bg__get_extreme_residuals <- function (norm,weights, v_threshold=c(0.05,0.95), f
 	if (!suppress.plot) {
 		hist(res, col="grey75", xlab="horizontal residuals", main="", prob=TRUE)
 		curve(dnorm(x,mean=mu, sd=sigma), add=TRUE);
-		if (direction="right" & sum(sig) > 0) {
+		if (direction=="right" & sum(sig) > 0) {
 			abline(v=min(res[sig]), col="red");
 		} else {
 			abline(v=max(res[sig]), col="red");
@@ -274,7 +275,7 @@ W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xli
 	sizeloc = bg__add_model_to_plot(MM, BasePlot, lty=1, lwd=2.5, col="black",legend_loc = "topright");
 	DEgenes = bg__test_DE_S_equiv(data_list$data, weights=weights, fit=MM, method=method);
 	bg__highlight_genes(DEgenes, BasePlot);
-	bg__expression_heatmap(genes, data_list$data, cell_labels=data_list$labels, gene_labels=knownDEgenes);
+	bg__expression_heatmap(DEgenes, data_list$data, cell_labels=data_list$labels, gene_labels=knownDEgenes);
 	return(DEgenes)
 }
 
@@ -283,7 +284,7 @@ W3D_Get_Extremes <- function(data_list, weights) {
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	shifted_right = bg__get_extreme_residuals(data_list$data,weights, v_threshold=c(0.05,0.95), fdr_threshold = 0.1, direction="right", suppress.plot=TRUE)
 	shifted_left  = bg__get_extreme_residuals(data_list$data,weights, v_threshold=c(0.05,0.95), fdr_threshold = 0.1, direction="left",  suppress.plot=TRUE)
-	bg__highlight_genes(shifted_right, BasePlot, col="orange");
-	bg__highlight_genes(shifted_left,  BasePlot, col="purple");
+	bg__highlight_genes(shifted_right, BasePlot, colour="orange");
+	bg__highlight_genes(shifted_left,  BasePlot, colour="purple");
 	return(list(left=shifted_left,right=shifted_right));
 }
