@@ -1,0 +1,1 @@
+Provided test data are: a single replicate of each Unstim and LPS_4h from Shalek data: GSE48968_allgenesTPM_GSM1189042_GSM1190902.txt following running W3D_Clean_Data on it (12576 genes x 191 cells).

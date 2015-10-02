@@ -269,11 +269,12 @@ W3D_Dropout_Models <- function(data_list, weights = 1, xlim=c(-1.5,6)) {
 	return(list(MMfit = MM, LogiFit = SCDE, ExpoFit = ZIFA));
 }
 
-W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xlim=c(-1.5,6), method="propagate") {
+W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xlim=c(-1.5,6), method="propagate", fdr_threshold=0.05) {
 	BasePlot = bg__dropout_plot_base(data_list$data, weights = weights, xlim = xlim);
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	sizeloc = bg__add_model_to_plot(MM, BasePlot, lty=1, lwd=2.5, col="black",legend_loc = "topright");
-	DEgenes = bg__test_DE_S_equiv(data_list$data, weights=weights, fit=MM, method=method);
+	DEoutput = bg__test_DE_S_equiv(data_list$data, weights=weights, fit=MM, method=method);
+	DEgenes = rownames(data_list$data)[p.adjust(DEoutput$pval, method="fdr") < fdr_threshold];
 	bg__highlight_genes(DEgenes, BasePlot);
 	bg__expression_heatmap(DEgenes, data_list$data, cell_labels=data_list$labels, gene_labels=knownDEgenes);
 	return(DEgenes)
