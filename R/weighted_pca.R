@@ -25,3 +25,15 @@ weighted_pca <- function(m,w,Nf=1,e=0.001,max_steps=10000) {
 		stop("Weights matrix must be same dimension as data matrix.");
 	}
 }
+
+weighted_pca_v2 <- function (m,w,method="covariance", Nf=1) {
+	# calculate weighted covariance or correlation matrix
+	c_matrix = matrix(0,nrow=length(m[,1]), ncol=length(m[,1]));
+	.C(as.double(m),as.double(w),as.integer(length(m[,1])), as.integer(length(m[1,])), as.double(c_matrix));
+	# do eigen decomposition
+	decomp <- eigen(c_matrix, symmetric=TRUE)
+	# Calculate Loadings
+	loadings = t(decomp$vectors[,1:Nf]) %*% m;
+	return(PCs = decomp$vectors[,1:NF], loadings = loadings);
+
+}

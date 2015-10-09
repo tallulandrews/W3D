@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
-		out <- .C("distance_wgt", y=as.double(m), w=as.double(w), nrow=as.integer(length(m[,1])), ncol=as.integer(length(m[1,])), exponent = as.double(p), out = as.double(dist) )
 
 /* 
 	Implementation by: Tallulah Andrews

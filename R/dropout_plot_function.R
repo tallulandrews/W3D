@@ -49,6 +49,7 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
 		if (nomatch > 0) {warning(paste(nomatch, " genes could not be matched to data, they will not be included in the heatmap."));}
 		genes = genes[!is.na(genes)];
 	}
+	if (length(genes) < 1) {warning("No genes for heatmap.");return();}
 	# Plot heatmap of expression
 	heatcolours <- brewer.pal(11,"RdBu")
 	heat_data = as.matrix(data[genes,])
@@ -106,7 +107,7 @@ bg__fit_MM <- function (p,s) {
 bg__fit_logistic <- function(p,s) {
         logistic = glm(p~log(s),family="binomial")
         predlog = fitted(logistic)
-	return(list(predictions=predlog, model=c( "Logistic", paste("Intercept =",round(logistic$coeff[1],digits=3)),paste("Coeff =",round(logistic$coeff[2],digits=3))),SSr=round(sum((fitted(logistic)-p)^2))),SAr=round(sum(abs(fitted(logistic)-p))));
+	return(list(predictions=predlog, model=c( "Logistic", paste("Intercept =",round(logistic$coeff[1],digits=3)),paste("Coeff =",round(logistic$coeff[2],digits=3))),SSr=round(sum((fitted(logistic)-p)^2)),SAr=round(sum(abs(fitted(logistic)-p)))));
 }
 bg__fit_ZIFA <- function(p,s) {
 	doubleXfit = nls(p ~ exp(-lambda*s*s),data.frame(s=s),start=list(lambda=0), algorithm="port", lower=list(lambda=0));

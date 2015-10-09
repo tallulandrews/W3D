@@ -1,3 +1,14 @@
+#include <math.h>
+#include <stdlib.h>
+/* 
+	Implementation by: Tallulah Andrews
+	Date: 5 Oct 2015
+	Untested
+*/
+int convert_2D_indices_to_1D (int i, int j, int* nrow, int* ncol) {
+	return(j* (*nrow) + i);
+}
+
 void covariance_weighted (double* x, double* wx, double* y, double* wy, int* n, double* covar) {
 	covar[0] = (double) *n;
 	double sum_x = 0.0;
@@ -19,4 +30,38 @@ void covariance_weighted (double* x, double* wx, double* y, double* wy, int* n, 
 		sum_cov = sum_cov + w*(x[i]-sum_x/sum_wx)*(y[i]-sum_y/sum_wy);
 	}
 	covar[0] = 1.0/(sum_w-1.0)*sum_cov;
+}
+
+
+
+void cov_matrix_weighted (double* m, double* w, int* nrow, int* ncol, double* out) {
+	int row1,row2;
+	for (row1 = 0; row1 < nrow; row1++) {
+		for (row2 = row1; row2 < nrow; row2++) {
+			double covar = 0.0;
+			int coord_row1 = convert_2D_indices_to_1D(row1,0,nrow,ncol)
+			int coord_row2 = convert_2D_indices_to_1D(row2,0,nrow,ncol)
+			covariance_weighted (&m[coord_row1], &w[coord_row1], &m[coord_row2], &w[coord_row2], ncol, &covar);
+			out[convert_2D_indices_to_1D(row1,row2,nrow,nrow)] = covar;
+			out[convert_2D_indices_to_1D(row2,row1,nrow,nrow)] = covar;
+		}
+	}	
+}
+
+void cor_matrix_weighted (double* m, double* w, int* nrow, int* ncol, double* out) {
+	int row1,row2;
+	for (row1 = 0; row1 < nrow; row1++) {
+		double var1 = 0.0;
+		covariance_weighted (&m[coord_row1], &w[coord_row1], &m[coord_row1], &w[coord_row1], ncol, &var1);
+		for (row2 = row1; row2 < nrow; row2++) {
+			double covar = 0.0;
+			double var2 = 0.0;
+			int coord_row1 = convert_2D_indices_to_1D(row1,0,nrow,ncol)
+			int coord_row2 = convert_2D_indices_to_1D(row2,0,nrow,ncol)
+			covariance_weighted (&m[coord_row1], &w[coord_row1], &m[coord_row2], &w[coord_row2], ncol, &covar);
+			covariance_weighted (&m[coord_row2], &w[coord_row2], &m[coord_row2], &w[coord_row2], ncol, &var2);
+			out[convert_2D_indices_to_1D(row1,row2,nrow,nrow)] = covar/(sqrt(var1)*sqrt(var2));
+			out[convert_2D_indices_to_1D(row2,row1,nrow,nrow)] = covar/(sqrt(var1)*sqrt(var2));
+		}
+	}	
 }

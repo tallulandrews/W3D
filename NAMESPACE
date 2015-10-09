@@ -1,6 +1,7 @@
 useDynLib(W3D)
 export(weighted_pca)
 exportPattern("*_wgt")
+exportPattern("bg__*")
 exportPattern("W3D_*")
 export(Calc_dropout_weights)
 import(RColorBrewer)
