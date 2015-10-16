@@ -14,7 +14,7 @@ bg__dropout_plot_base <- function (norm, weights = 1, xlim = NA) {
         dens.col = colours[dens]
 
         par(fg="black")
-	if (!is.na(xlim)) {
+	if (!(sum(is.na(xlim)))) {
         	plot(xes,gene_info$p, main="", ylab="Dropout Proportion", xlab="log(expression)", col = dens.col,pch=16, xlim=xlim, ylim=c(0,1))
 	} else {
         	plot(xes,gene_info$p, main="", ylab="Dropout Proportion", xlab="log(expression)", col = dens.col,pch=16)
@@ -25,19 +25,23 @@ bg__dropout_plot_base <- function (norm, weights = 1, xlim = NA) {
 bg__add_model_to_plot <- function(fitted_model, base_plot, lty=1, lwd=1, col="black",legend_loc = "topright") {
 	lines(base_plot$xes[base_plot$order],fitted_model$predictions[base_plot$order],lty=lty,lwd=lwd,col=col);
 	par(fg=col)
-        this_loc = legend(legend_loc, fitted_model$model, box.lty=lty, box.lwd=lwd, xjust=1)
+	if (length(legend_loc) == 2) {
+        	this_loc = legend(legend_loc[1], legend_loc[2], fitted_model$model, box.lty=lty, box.lwd=lwd, xjust=1)
+	} else {
+		this_loc = legend(legend_loc[1], fitted_model$model, box.lty=lty, box.lwd=lwd, xjust=1)
+	}
 	par(fg="black")
 	return(this_loc)
 }
 
 bg__highlight_genes <- function (base_plot, genes, colour="purple", pch=16) {
 	if(!is.numeric(genes)) {
-		genes = match(genes, rownames(base_plot));
+		genes = match(genes, rownames(base_plot$data));
 		nomatch = sum(is.na(genes));
 		if (nomatch > 0) {warning(paste(nomatch, " genes could not be matched to data, they will not be highlighted."));}
 		genes = genes[!is.na(genes)];
 	}
-	points(base_plot$xes[genes],base_plot$p[genes],col=colour, pch=pch)
+	points(base_plot$xes[genes],base_plot$P[genes],col=colour, pch=pch)
 }
 
 bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA) { # Should weighting be taken into account for heatmap clustering?
@@ -55,13 +59,13 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
 	heat_data = as.matrix(data[genes,])
 	heat_data = log(heat_data+1)/log(2);
 	ColColors = rep("white", times=length(heat_data[1,]))
-	RowColors = rep("white", times=length(heat_data[1,]))
-	if (!is.na(cell_labels)) {
+	RowColors = rep("white", times=length(heat_data[,1]))
+	if (!is.na(cell_labels[1])) {
 		colours = as.factor(cell_labels)
 		palette = brewer.pal(max(3,length(unique(cell_labels))), "Set3");
 		ColColors = palette[colours];	
 	} 
-	if (!is.na(gene_labels)) {
+	if (!is.na(gene_labels[1])) {
 		# lowest factor level = grey (so 0-1 is striking)
 		colours = as.factor(gene_labels)
 		palette = c("grey75",brewer.pal(max(3,length(unique(gene_labels))), "Set1"));
@@ -73,7 +77,7 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
 # Model-fitting/manipulation Functions
 bg__calc_variables <- function(norm, weights = 1) {
         # Calc variables
-	if (prod(dim(weights) == dim(norm))) {
+	if (length(dim(weights)) == 2 & prod(dim(weights) == dim(norm))) {
 		p = rowZero_wgt(norm,weights)/rowSums(weights);
         	s = rowMeans_wgt(norm,weights);
 		s_stderr = sqrt(rowVar_wgt(norm,weights))/sqrt(rowSums(weights));
@@ -107,13 +111,13 @@ bg__fit_MM <- function (p,s) {
 bg__fit_logistic <- function(p,s) {
         logistic = glm(p~log(s),family="binomial")
         predlog = fitted(logistic)
-	return(list(predictions=predlog, model=c( "Logistic", paste("Intercept =",round(logistic$coeff[1],digits=3)),paste("Coeff =",round(logistic$coeff[2],digits=3))),SSr=round(sum((fitted(logistic)-p)^2)),SAr=round(sum(abs(fitted(logistic)-p)))));
+	return(list(predictions=predlog, B0 = logistic$coeff[1], B1=logistic$coeff[2] ,model=c( "Logistic", paste("Intercept =",round(logistic$coeff[1],digits=3)),paste("Coeff =",round(logistic$coeff[2],digits=3))),SSr=round(sum((fitted(logistic)-p)^2)),SAr=round(sum(abs(fitted(logistic)-p)))));
 }
 bg__fit_ZIFA <- function(p,s) {
 	doubleXfit = nls(p ~ exp(-lambda*s*s),data.frame(s=s),start=list(lambda=0), algorithm="port", lower=list(lambda=0));
 	preddoubleX = fitted(doubleXfit);
 	lambda=summary(doubleXfit)$parameters[1,1];
-	return(list(predictions=preddoubleX, model=c("p ~ e^(-lambda*S^2)",paste("lambda =",signif(lambda,digits=2))),SSr = round(sum((residuals(doubleXfit))^2)),SAr = round(sum(abs(residuals(doubleXfit))))));
+	return(list(predictions=preddoubleX, lambda=lambda, model=c("p ~ e^(-lambda*S^2)",paste("lambda =",signif(lambda,digits=2))),SSr = round(sum((residuals(doubleXfit))^2)),SAr = round(sum(abs(residuals(doubleXfit))))));
 }
 
 # Normalization Functions
@@ -185,7 +189,7 @@ obsolete__test_DE_P_equiv <- function (norm, weights=1, fit=NA) {
 # Use the fact that S as a function of P is more stable to noise for the main part of the curve
 bg__test_DE_S_equiv <- function (norm, weights=1, fit=NA, method="propagate") {
 	gene_info = bg__calc_variables(norm, weights);
-	if (is.na(fit)) {
+	if (is.na(fit[1])) {
 		fit = bg__fit_MM(gene_info$p, gene_info$s);
 	}
 	p_obs = gene_info$p;
@@ -266,7 +270,7 @@ W3D_Dropout_Models <- function(data_list, weights = 1, xlim=c(-1.5,6)) {
 	ZIFA = bg__fit_ZIFA(BasePlot$P, BasePlot$S);
 	sizeloc = bg__add_model_to_plot(MM, BasePlot, lty=1, lwd=2.5, col="black",legend_loc = "topright");
 	sizeloc = bg__add_model_to_plot(SCDE, BasePlot, lty=2, lwd=2.5, col="grey35",legend_loc = c(sizeloc$rect$left+sizeloc$rect$w,sizeloc$rect$top-sizeloc$rect$h-0.05));
-	sizeloc = bg__add_model_to_plot(ZIFA, BasePlot, lty=3, lwd=2.5, col="grey75",legend_loc = c(sizeloc$rect$left+sizeloc$rect$w,sizeloc$rect$top-sizeloc$rect$h-0.05));
+	sizeloc = bg__add_model_to_plot(ZIFA, BasePlot, lty=3, lwd=2.5, col="grey65",legend_loc = c(sizeloc$rect$left+sizeloc$rect$w,sizeloc$rect$top-sizeloc$rect$h-0.05));
 	return(list(MMfit = MM, LogiFit = SCDE, ExpoFit = ZIFA));
 }
 
@@ -276,7 +280,8 @@ W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xli
 	sizeloc = bg__add_model_to_plot(MM, BasePlot, lty=1, lwd=2.5, col="black",legend_loc = "topright");
 	DEoutput = bg__test_DE_S_equiv(data_list$data, weights=weights, fit=MM, method=method);
 	DEgenes = rownames(data_list$data)[p.adjust(DEoutput$pval, method="fdr") < fdr_threshold];
-	bg__highlight_genes(DEgenes, BasePlot);
+	DEgenes = DEgenes[!is.na(DEgenes)];
+	bg__highlight_genes(BasePlot, DEgenes);
 	bg__expression_heatmap(DEgenes, data_list$data, cell_labels=data_list$labels, gene_labels=knownDEgenes);
 	return(DEgenes)
 }
@@ -286,7 +291,7 @@ W3D_Get_Extremes <- function(data_list, weights) {
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	shifted_right = bg__get_extreme_residuals(data_list$data,weights, v_threshold=c(0.05,0.95), fdr_threshold = 0.1, direction="right", suppress.plot=TRUE)
 	shifted_left  = bg__get_extreme_residuals(data_list$data,weights, v_threshold=c(0.05,0.95), fdr_threshold = 0.1, direction="left",  suppress.plot=TRUE)
-	bg__highlight_genes(shifted_right, BasePlot, colour="orange");
-	bg__highlight_genes(shifted_left,  BasePlot, colour="purple");
+	bg__highlight_genes(BasePlot, shifted_right, colour="orange");
+	bg__highlight_genes(BasePlot, shifted_left, colour="purple");
 	return(list(left=shifted_left,right=shifted_right));
 }

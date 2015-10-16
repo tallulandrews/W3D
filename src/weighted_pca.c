@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
+#include <R.h>
+#include "misc_functions.h"
 
 /* 
 	Initialization procedure to minimize chance of sub-optimal convergence from: Gabriel, K. Ruben, and Zamir, S., (1979) Lower Rank Approximation of Matrices by Least Squares With Any Choice of Weights. Technometrics: 21(4) p489-498. 
@@ -12,9 +14,6 @@
 
 
 */
-int convert_2D_indices_to_1D (int i, int j, int* Ng, int* Nc) {
-	return(j* (*Ng) + i);
-}
 
 void initialize (double* y, double* w, int* Ng, int* Nc, double* a) {
 	double close_enough = 0.00001; // close enough to 0 to count as a zero for sub-optimal convergence problems
