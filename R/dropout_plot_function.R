@@ -55,7 +55,8 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
 	}
 	if (length(genes) < 1) {warning("No genes for heatmap.");return();}
 	# Plot heatmap of expression
-	heatcolours <- brewer.pal(11,"RdBu")
+	heatcolours <- rev(brewer.pal(11,"RdBu"))
+	col_breaks = c(-100,seq(-2,2,length=10),100)
 	heat_data = as.matrix(data[genes,])
 	heat_data = log(heat_data+1)/log(2);
 	ColColors = rep("white", times=length(heat_data[1,]))
@@ -64,6 +65,7 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
 		colours = as.factor(cell_labels)
 		palette = brewer.pal(max(3,length(unique(cell_labels))), "Set3");
 		ColColors = palette[colours];	
+		mylegend<- list(names = unique(cell_labels), fill = unique(ColColors));
 	} 
 	if (!is.na(gene_labels[1])) {
 		# lowest factor level = grey (so 0-1 is striking)
@@ -71,7 +73,10 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
 		palette = c("grey75",brewer.pal(max(3,length(unique(gene_labels))), "Set1"));
 		RowColors = palette[colours];
 	}
-	heatmap.2(heat_data, ColSideColors = ColColors, RowSideColors = RowColors, col=heatcolours, scale="row",symbreaks=T, trace="none", dendrogram="column")
+	heatmap.2(heat_data, ColSideColors = ColColors, RowSideColors = RowColors, col=heatcolours, breaks=col_breaks, scale="row",symbreaks=T, trace="none", dendrogram="column", key=FALSE)
+	if (!is.na(cell_labels[1])) {
+		legend("left", mylegend$names, fill = mylegend$fill);
+	}
 }
 
 # Model-fitting/manipulation Functions
@@ -282,7 +287,18 @@ W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xli
 	DEgenes = rownames(data_list$data)[p.adjust(DEoutput$pval, method="fdr") < fdr_threshold];
 	DEgenes = DEgenes[!is.na(DEgenes)];
 	bg__highlight_genes(BasePlot, DEgenes);
-	bg__expression_heatmap(DEgenes, data_list$data, cell_labels=data_list$labels, gene_labels=knownDEgenes);
+	
+	# Converted known DE genes into heatmap labels 
+	gene_labels = rep(1, times = length(DEgenes));
+	if (is.list(knownDEgenes)) {
+		for (i in 1:length(knownDEgenes)) {
+			gene_labels[DEgenes %in% knownDEgenes[[i]]] = i+1;
+		}
+	} else {
+		gene_labels[DEgenes %in% knownDEgenes] = 2;
+	}
+
+	bg__expression_heatmap(DEgenes, data_list$data, cell_labels=data_list$labels, gene_labels=gene_labels);
 	return(DEgenes)
 }
 
