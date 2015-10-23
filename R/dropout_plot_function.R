@@ -75,7 +75,7 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
 	}
 	heatmap.2(heat_data, ColSideColors = ColColors, RowSideColors = RowColors, col=heatcolours, breaks=col_breaks, scale="row",symbreaks=T, trace="none", dendrogram="column", key=FALSE)
 	if (!is.na(cell_labels[1])) {
-		legend("left", mylegend$names, fill = mylegend$fill);
+		legend("topleft", mylegend$names, fill = mylegend$fill,bg="white");
 	}
 }
 
