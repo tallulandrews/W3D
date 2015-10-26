@@ -1,6 +1,6 @@
 # Modularize this stuff more sensibly
 #  Plotting Functions
-bg__dropout_plot_base <- function (norm, weights = 1, xlim = NA) {
+bg__dropout_plot_base <- function (norm, weights = 1, xlim = NA, suppress.plot=FALSE) {
 	require("RColorBrewer")
 	
 	gene_info = bg__calc_variables(norm,weights);
@@ -14,10 +14,12 @@ bg__dropout_plot_base <- function (norm, weights = 1, xlim = NA) {
         dens.col = colours[dens]
 
         par(fg="black")
-	if (!(sum(is.na(xlim)))) {
-        	plot(xes,gene_info$p, main="", ylab="Dropout Proportion", xlab="log(expression)", col = dens.col,pch=16, xlim=xlim, ylim=c(0,1))
-	} else {
-        	plot(xes,gene_info$p, main="", ylab="Dropout Proportion", xlab="log(expression)", col = dens.col,pch=16)
+	if (!suppress.plot) {
+		if (!(sum(is.na(xlim)))) {
+	        	plot(xes,gene_info$p, main="", ylab="Dropout Proportion", xlab="log(expression)", col = dens.col,pch=16, xlim=xlim, ylim=c(0,1))
+		} else {
+	        	plot(xes,gene_info$p, main="", ylab="Dropout Proportion", xlab="log(expression)", col = dens.col,pch=16)
+		}
 	}
 	return(list(P=gene_info$p, S=gene_info$s, xes=xes, data=norm, weights=weights, order=put_in_order));
 }
@@ -226,7 +228,7 @@ bg__test_DE_S_equiv <- function (norm, weights=1, fit=NA, method="propagate") {
 	return(list(pval = pval, effect = effect_size))
 }
 
-bg__get_extreme_residuals <- function (norm,weights, v_threshold=c(0.05,0.95), fdr_threshold = 0.1, direction="right", suppress.plot = FALSE) {
+bg__get_extreme_residuals <- function (norm,weights, fit=NA, v_threshold=c(0.05,0.95), fdr_threshold = 0.1, direction="right", suppress.plot = FALSE) {
 	gene_info = bg__calc_variables(norm, weights);
 	if (is.na(fit)) {
 		fit = bg__fit_MM(gene_info$p, gene_info$s);
@@ -302,11 +304,12 @@ W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xli
 	return(DEgenes)
 }
 
-W3D_Get_Extremes <- function(data_list, weights) {
+W3D_Get_Extremes <- function(data_list, weights, fdr_threshold = 0.1, v_threshold=c(0.05,0.95)) {
 	BasePlot = bg__dropout_plot_base(data_list$data, weights = weights, xlim = c(-1.5,6));
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
-	shifted_right = bg__get_extreme_residuals(data_list$data,weights, v_threshold=c(0.05,0.95), fdr_threshold = 0.1, direction="right", suppress.plot=TRUE)
-	shifted_left  = bg__get_extreme_residuals(data_list$data,weights, v_threshold=c(0.05,0.95), fdr_threshold = 0.1, direction="left",  suppress.plot=TRUE)
+	sizeloc = bg__add_model_to_plot(MM, BasePlot, lty=1, lwd=2.5, col="black",legend_loc = "topright");
+	shifted_right = bg__get_extreme_residuals(data_list$data,weights, fit=MM, v_threshold=v_threshold, fdr_threshold = fdr_threshold, direction="right", suppress.plot=TRUE)
+	shifted_left  = bg__get_extreme_residuals(data_list$data,weights, fit=MM, v_threshold=v_threshold, fdr_threshold = fdr_threshold, direction="left",  suppress.plot=TRUE)
 	bg__highlight_genes(BasePlot, shifted_right, colour="orange");
 	bg__highlight_genes(BasePlot, shifted_left, colour="purple");
 	return(list(left=shifted_left,right=shifted_right));
