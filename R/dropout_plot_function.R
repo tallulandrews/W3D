@@ -75,7 +75,7 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
 		palette = c("grey75",brewer.pal(max(3,length(unique(gene_labels))), "Set1"));
 		RowColors = palette[colours];
 	}
-	heatmap.2(heat_data, ColSideColors = ColColors, RowSideColors = RowColors, col=heatcolours, breaks=col_breaks, scale="row",symbreaks=T, trace="none", dendrogram="column", key=FALSE)
+	heatmap.2(heat_data, ColSideColors = ColColors, RowSideColors = RowColors, col=heatcolours, breaks=col_breaks, scale="row",symbreaks=T, trace="none", dendrogram="column", key=FALSE, Rowv=TRUE, Colv=TRUE)
 	if (!is.na(cell_labels[1])) {
 		legend("topleft", mylegend$names, fill = mylegend$fill,bg="white");
 	}
@@ -281,12 +281,13 @@ W3D_Dropout_Models <- function(data_list, weights = 1, xlim=c(-1.5,6)) {
 	return(list(MMfit = MM, LogiFit = SCDE, ExpoFit = ZIFA));
 }
 
-W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xlim=c(-1.5,6), method="propagate", fdr_threshold=0.05) {
+W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xlim=c(-1.5,6), method="propagate", mt_method="bon", mt_threshold=0.05) {
 	BasePlot = bg__dropout_plot_base(data_list$data, weights = weights, xlim = xlim);
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	sizeloc = bg__add_model_to_plot(MM, BasePlot, lty=1, lwd=2.5, col="black",legend_loc = "topright");
 	DEoutput = bg__test_DE_S_equiv(data_list$data, weights=weights, fit=MM, method=method);
-	DEgenes = rownames(data_list$data)[p.adjust(DEoutput$pval, method="fdr") < fdr_threshold];
+	sig = p.adjust(DEoutput$pval, method=mt_method) < mt_threshold;
+	DEgenes = rownames(data_list$data)[sig];
 	DEgenes = DEgenes[!is.na(DEgenes)];
 	bg__highlight_genes(BasePlot, DEgenes);
 	
@@ -301,7 +302,8 @@ W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xli
 	}
 
 	bg__expression_heatmap(DEgenes, data_list$data, cell_labels=data_list$labels, gene_labels=gene_labels);
-	return(DEgenes)
+	TABLE = data.frame(Gene = DEgenes, p.value = DEoutput$pval[sig], q.value= p.adjust(DEoutput$pval, method=mt_method)[sig])
+	return(TABLE)
 }
 
 W3D_Get_Extremes <- function(data_list, weights, fdr_threshold = 0.1, v_threshold=c(0.05,0.95)) {
