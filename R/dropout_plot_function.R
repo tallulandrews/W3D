@@ -286,7 +286,7 @@ W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xli
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	sizeloc = bg__add_model_to_plot(MM, BasePlot, lty=1, lwd=2.5, col="black",legend_loc = "topright");
 	DEoutput = bg__test_DE_S_equiv(data_list$data, weights=weights, fit=MM, method=method);
-	sig = p.adjust(DEoutput$pval, method=mt_method) < mt_threshold;
+	sig = which(p.adjust(DEoutput$pval, method=mt_method) < mt_threshold);
 	DEgenes = rownames(data_list$data)[sig];
 	DEgenes = DEgenes[!is.na(DEgenes)];
 	bg__highlight_genes(BasePlot, DEgenes);
