@@ -292,18 +292,32 @@ W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xli
 	bg__highlight_genes(BasePlot, DEgenes);
 	
 	# Converted known DE genes into heatmap labels 
-	gene_labels = rep(1, times = length(DEgenes));
-	if (is.list(knownDEgenes)) {
-		for (i in 1:length(knownDEgenes)) {
-			gene_labels[DEgenes %in% knownDEgenes[[i]]] = i+1;
-		}
-	} else {
-		gene_labels[DEgenes %in% knownDEgenes] = 2;
-	}
-
-	bg__expression_heatmap(DEgenes, data_list$data, cell_labels=data_list$labels, gene_labels=gene_labels);
+	# Move to separate function so plots can be saved/displayed separately
+#	gene_labels = rep(1, times = length(DEgenes));
+#	if (is.list(knownDEgenes)) {
+#		for (i in 1:length(knownDEgenes)) {
+#			gene_labels[DEgenes %in% knownDEgenes[[i]]] = i+1;
+#		}
+#	} else {
+#		gene_labels[DEgenes %in% knownDEgenes] = 2;
+#	}
+#
+#	bg__expression_heatmap(DEgenes, data_list$data, cell_labels=data_list$labels, gene_labels=gene_labels);
 	TABLE = data.frame(Gene = DEgenes, p.value = DEoutput$pval[sig], q.value= p.adjust(DEoutput$pval, method=mt_method)[sig])
 	return(TABLE)
+}
+
+W3D_Expression_Heatmap <- function(Genes, Expr_Mat, cell_labels=NA, interesting_genes=NA) {
+	# Converted known DE genes into heatmap labels 
+	gene_labels = rep(1, times = length(Genes));
+ 	if (is.list(interesting_genes)) {
+                for (i in 1:length(interesting_genes)) {
+                        gene_labels[Genes %in% interesting_genes[[i]]] = i+1;
+                }
+        } else {
+                gene_labels[Genes %in% interesting_genes] = 2;
+        }
+	bg__expression_heatmap(Genes, Expr_Mat, cell_labels=cell_labels, gene_labels=gene_labels);
 }
 
 W3D_Get_Extremes <- function(data_list, weights, fdr_threshold = 0.1, v_threshold=c(0.05,0.95)) {
