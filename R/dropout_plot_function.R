@@ -9,8 +9,9 @@ bg__dropout_plot_base <- function (norm, weights = 1, xlim = NA, suppress.plot=F
         put_in_order = order(xes);
         fancy <- densCols(xes, gene_info$p, colramp=colorRampPalette(c("black","white")))
         dens <- col2rgb(fancy)[1,]+1L
-        colours <-  colorRampPalette(c("#000099", "#00FEFF", "#45FE4F",
-                                    "#FCFF00", "#FF9400", "#FF3100"))(256)
+#        colours <-  colorRampPalette(c("#000099", "#00FEFF", "#45FE4F",
+#                                    "#FCFF00", "#FF9400", "#FF3100"))(256) #rainbow
+        colours <-  colorRampPalette(c("#000099", "#00FEFF", "#FCFF00"))(256) #blue->yellow
         dens.col = colours[dens]
 
         par(fg="black")
@@ -75,9 +76,36 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
 		palette = c("grey75",brewer.pal(max(3,length(unique(gene_labels))), "Set1"));
 		RowColors = palette[colours];
 	}
-	heatmap.2(heat_data, ColSideColors = ColColors, RowSideColors = RowColors, col=heatcolours, breaks=col_breaks, scale="row",symbreaks=T, trace="none", dendrogram="column", key=FALSE, Rowv=TRUE, Colv=TRUE)
+	# Custom Shit
+	lwid=c(1.0,0.1,0.2,4)
+	lhei=c(0.75,0.1,0.2,4)
+	lmat=rbind(c(7,6,NA,5),c(NA,NA,NA,2),c(8,4,1,3))
+
+
+	heatmap.2(heat_data, ColSideColors = ColColors, RowSideColors = RowColors, col=heatcolours, breaks=col_breaks, scale="row",symbreaks=T, trace="none", dendrogram="column", key=FALSE, Rowv=TRUE, Colv=TRUE,lwid=lwid, lhei=lhei,lmat=lmat)
+	# Custom key
+	plot.new()
+	par(mar=c(5,1,1,1))
+	par(cex=0.75)
+	par(mgp=c(2,1,0))
+	key_breaks = seq(-2,2,length=10)
+	key_col = heatcolours[2:(length(heatcolours)-1)]
+	z = seq(min(key_breaks),max(key_breaks), by=min(diff(key_breaks)/4))
+	image(z=matrix(z,ncol=1),col=key_col,breaks=key_breaks,xaxt="n",yaxt="n")
+	par(usr = c(0, 1, 0, 1))
+	lv <- pretty(key_breaks)
+        xv <- scale01(as.numeric(lv), min(key_breaks),max(key_breaks))
+        xargs <- list(at = xv, labels = lv)
+	xargs$side <- 1
+	do.call(axis, xargs)
+	mtext(side = 1, "Expression Z-Score", line = par("mgp")[1], padj = 0.5, 
+                cex = par("cex") * par("cex.lab"))
+
+	# Legend
+	plot.new()
+	par(mar=c(0,0,0,0))
 	if (!is.na(cell_labels[1])) {
-		legend("topleft", mylegend$names, fill = mylegend$fill,bg="white");
+		legend("topright", mylegend$names, fill = mylegend$fill,bg="white");
 	}
 }
 
