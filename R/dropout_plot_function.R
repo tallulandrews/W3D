@@ -72,19 +72,27 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
 	} 
 	if (!is.na(gene_labels[1])) {
 		# lowest factor level = grey (so 0-1 is striking)
-		colours = as.factor(gene_labels)
+		if (!is.numeric(gene_labels)) {
+			colours = as.factor(gene_labels)
+		} else {
+			colours = gene_labels
+		}
 		palette = c("grey75",brewer.pal(max(3,length(unique(gene_labels))), "Set1"));
 		RowColors = palette[colours];
 	}
 	# Custom Shit
-	lwid=c(1.0,0.1,0.2,4)
-	lhei=c(0.75,0.1,0.2,4)
-	lmat=rbind(c(7,6,NA,5),c(NA,NA,NA,2),c(8,4,1,3))
+	lwid=c(1,0.2,4)
+	lhei=c(1,0.2,4)
+	lmat=rbind(c(6,0,5),c(0,0,2),c(4,1,3))
 
 
 	heatmap.2(heat_data, ColSideColors = ColColors, RowSideColors = RowColors, col=heatcolours, breaks=col_breaks, scale="row",symbreaks=T, trace="none", dendrogram="column", key=FALSE, Rowv=TRUE, Colv=TRUE,lwid=lwid, lhei=lhei,lmat=lmat)
 	# Custom key
-	plot.new()
+	par(fig = c(0, 1/(5.2),4/(5.2), 1), mar=c(4,1,1,1), new=TRUE)
+	scale01 <- function(x, low = min(x), high = max(x)) {
+        	x <- (x - low)/(high - low)
+        	x
+    	}
 	par(mar=c(5,1,1,1))
 	par(cex=0.75)
 	par(mgp=c(2,1,0))
@@ -102,10 +110,10 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
                 cex = par("cex") * par("cex.lab"))
 
 	# Legend
-	plot.new()
+	par(fig = c(0/5.2, 1/(5.2),0/(5.2), 4/5.2), mar=c(0,0,0,0), new=TRUE)
 	par(mar=c(0,0,0,0))
 	if (!is.na(cell_labels[1])) {
-		legend("topright", mylegend$names, fill = mylegend$fill,bg="white");
+		legend("left", mylegend$names, pt.bg = mylegend$fill,bg="white",col="black", pch=22, pt.cex=2.5, cex=1.25, bty="n",y.intersp = 2);
 	}
 }
 
@@ -338,6 +346,9 @@ W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xli
 W3D_Expression_Heatmap <- function(Genes, Expr_Mat, cell_labels=NA, interesting_genes=NA) {
 	# Converted known DE genes into heatmap labels 
 	gene_labels = rep(1, times = length(Genes));
+	if (is.na(interesting_genes)) {
+		gene_labels=NA
+	}
  	if (is.list(interesting_genes)) {
                 for (i in 1:length(interesting_genes)) {
                         gene_labels[Genes %in% interesting_genes[[i]]] = i+1;
@@ -345,7 +356,7 @@ W3D_Expression_Heatmap <- function(Genes, Expr_Mat, cell_labels=NA, interesting_
         } else {
                 gene_labels[Genes %in% interesting_genes] = 2;
         }
-	bg__expression_heatmap(Genes, Expr_Mat, cell_labels=cell_labels, gene_labels=gene_labels);
+	bg__expression_heatmap(Genes, log(Expr_Mat+1), cell_labels=cell_labels, gene_labels=as.numeric(gene_labels));
 }
 
 W3D_Get_Extremes <- function(data_list, weights, fdr_threshold = 0.1, v_threshold=c(0.05,0.95)) {
