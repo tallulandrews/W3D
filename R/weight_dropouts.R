@@ -16,11 +16,11 @@ colZero_wgt <- function(m,w) {
 }
 
 Calc_dropout_weights<- function(m) {
-	drops_c = unlist(apply(m, 2, count_zeros));
+	nrow = dim(m)[1]
+	ncol = dim(m)[2]
+	drops_c = colSums(m==0);
 	weight_c = min(drops_c)/drops_c; # down weight excess zeros
-	weight_m = m;
-	weight_m[m > 0] = 1;
-	weight_m = t(t(weight_m)+weight_c);
+	weight_m = matrix(rep(weight_c,times=nrow),ncol=ncol,byrow=T);
 	weight_m[m > 0] = 1;
 	return(weight_m);
 }
