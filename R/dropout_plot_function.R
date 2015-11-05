@@ -356,7 +356,7 @@ W3D_Expression_Heatmap <- function(Genes, Expr_Mat, cell_labels=NA, interesting_
         } else {
                 gene_labels[Genes %in% interesting_genes] = 2;
         }
-	bg__expression_heatmap(Genes, log(Expr_Mat+1), cell_labels=cell_labels, gene_labels=as.numeric(gene_labels));
+	bg__expression_heatmap(Genes, Expr_Mat, cell_labels=cell_labels, gene_labels=as.numeric(gene_labels));
 }
 
 W3D_Get_Extremes <- function(data_list, weights, fdr_threshold = 0.1, v_threshold=c(0.05,0.95)) {
