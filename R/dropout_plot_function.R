@@ -306,7 +306,7 @@ W3D_Clean_Data <- function(data, labels = NA, suppress.plot=FALSE) {
 	return(list(data = norm, labels=labels));
 }
 
-W3D_Dropout_Models <- function(data_list, weights = 1, xlim=c(-1.5,6)) {
+W3D_Dropout_Models <- function(data_list, weights = 1, xlim=NA) {
 	BasePlot = bg__dropout_plot_base(data_list$data, weights = weights, xlim = xlim);
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	SCDE = bg__fit_logistic(BasePlot$P, BasePlot$S);
@@ -317,7 +317,7 @@ W3D_Dropout_Models <- function(data_list, weights = 1, xlim=c(-1.5,6)) {
 	return(list(MMfit = MM, LogiFit = SCDE, ExpoFit = ZIFA));
 }
 
-W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xlim=c(-1.5,6), method="propagate", mt_method="bon", mt_threshold=0.05) {
+W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xlim=NA, method="propagate", mt_method="bon", mt_threshold=0.05) {
 	BasePlot = bg__dropout_plot_base(data_list$data, weights = weights, xlim = xlim);
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	sizeloc = bg__add_model_to_plot(MM, BasePlot, lty=1, lwd=2.5, col="black",legend_loc = "topright");
@@ -360,7 +360,7 @@ W3D_Expression_Heatmap <- function(Genes, Expr_Mat, cell_labels=NA, interesting_
 }
 
 W3D_Get_Extremes <- function(data_list, weights, fdr_threshold = 0.1, v_threshold=c(0.05,0.95)) {
-	BasePlot = bg__dropout_plot_base(data_list$data, weights = weights, xlim = c(-1.5,6));
+	BasePlot = bg__dropout_plot_base(data_list$data, weights = weights, xlim = NA);
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	sizeloc = bg__add_model_to_plot(MM, BasePlot, lty=1, lwd=2.5, col="black",legend_loc = "topright");
 	shifted_right = bg__get_extreme_residuals(data_list$data,weights, fit=MM, v_threshold=v_threshold, fdr_threshold = fdr_threshold, direction="right", suppress.plot=TRUE)
