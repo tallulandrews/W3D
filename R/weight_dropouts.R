@@ -4,15 +4,17 @@ num_zeros_wgt <-function(x,w) {sum(w[x==0])}
 rowZero_wgt <- function(m,w) {
 	w[is.na(m)] = 0;
 	m[is.na(m)] = 0;
-	i = 1:length(m[,1])
-	unlist(lapply(i, function(j) {num_zeros_wgt(m[j,],w[j,])}))
+#	i = 1:length(m[,1])
+#	unlist(lapply(i, function(j) {num_zeros_wgt(m[j,],w[j,])}))
+	rowSums( (m==0)*w )
 }
 
 colZero_wgt <- function(m,w) {
 	w[is.na(m)] = 0;
 	m[is.na(m)] = 0;
-	i = 1:length(m[1,])
-	unlist(lapply(i, function(j) {num_zeros_wgt(m[,j],w[,j])}))
+#	i = 1:length(m[1,])
+#	unlist(lapply(i, function(j) {num_zeros_wgt(m[,j],w[,j])}))
+	colSums( (m==0)*w )
 }
 
 Calc_dropout_weights<- function(m) {
@@ -28,7 +30,8 @@ Calc_dropout_weights<- function(m) {
 rowMeans_wgt <- function(m,w) {
 	w[is.na(m)] = 0;
 	m[is.na(m)] = 0;
-	unlist(apply(m*w,1,sum))/rowSums(w);
+#	unlist(apply(m*w,1,sum))/rowSums(w);
+	return(rowMeans(m*w));
 }
 
 #covar_wgt <- function(x,wx,y,wy) {
@@ -55,7 +58,8 @@ rowVar_wgt <- function(m,w) {
 colMeans_wgt <- function(m,w) {
 	w[is.na(m)] = 0;
 	m[is.na(m)] = 0;
-	unlist(apply(m*w,2,sum))/colSums(w);
+	#unlist(apply(m*w,2,sum))/colSums(w);
+	return(colMeans(m*w));
 }
 
 colVar_wgt <- function(m,w) {
