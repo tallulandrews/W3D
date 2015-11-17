@@ -161,7 +161,7 @@ bg__fit_MM <- function (p,s) {
 	krt = thing@coef[1,1]
 	res_err = thing@coef[2,1]
 	Kerr = thing@coef[1,2]
-	predicted = 1-(/(krt+s))
+	predicted = 1-(s/(krt+s))
 	residuals = p-predicted
 	return(list(K=krt,Kerr=Kerr,fitted_err = res_err,predictions=predicted, model=c("MMenton",paste("Krt =",round(krt,digits=3))),SSr=round(sum((residuals)^2)),SAr=round(sum(abs(residuals)))))
 
@@ -422,3 +422,81 @@ W3D_Get_Extremes <- function(data_list, weights, fdr_threshold = 0.1, v_threshol
 	bg__highlight_genes(BasePlot, shifted_left, colour="purple");
 	return(list(left=shifted_left,right=shifted_right));
 }
+
+###### Extra Stuff for Comparisons ######
+#from : http://www.nature.com/nmeth/journal/v10/n11/full/nmeth.2645.html#supplementary-information
+Brennecke_getVariableGenes <- function(data, spikes=NA, suppress.plot=FALSE, fdr=0.1, minBiolDisp=0.5) {
+        require(statmod)
+        require(DESeq)
+
+        rowVars <- function(x) { unlist(apply(x,1,var))}
+
+        colGenes = "black"
+        colSp = "grey35"
+
+
+        fullCountTable <- data;
+
+        if (is.character(spikes)) {
+                sp = rownames(fullCountTable) %in% spikes;
+                countsSp <- fullCountTable[sp,];
+                countsGenes <- fullCountTable[!sp,];
+        } else if (is.numeric(spikes)) {
+                countsSp <- fullCountTable[spikes,];
+                countsGenes <- fullCountTable[-spikes,];
+        } else {
+                countsSp = fullCountTable;
+                countsGenes = fullCountTable;
+        }
+
+        meansSp = rowMeans(countsSp)
+        varsSp = rowVars(countsSp)
+        cv2Sp = varsSp/meansSp^2
+        meansGenes = rowMeans(countsGenes)
+        varsGenes = rowVars(countsGenes)
+        cv2Genes = varsGenes/meansGenes^2
+        # Fit Model
+        minMeanForFit <- unname( quantile( meansSp[ which( cv2Sp > 0.3 ) ], 0.80))
+        useForFit <- meansSp >= minMeanForFit
+        if (sum(useForFit) < 50) {
+                warning("Too few spike-ins exceed minMeanForFit, recomputing using all genes.")
+                meansAll = c(meansGenes, meansSp)
+                cv2All = c(cv2Genes,cv2Sp)
+                minMeanForFit <- unname( quantile( meansAll[ which( cv2All > 0.3 ) ], 0.80))
+                useForFit <- meansSp >= minMeanForFit
+        }
+        if (sum(useForFit) < 50) {warning(paste("Only", sum(useForFit), "spike-ins to be used in fitting, may result in poor fit."))}
+        fit <- glmgam.fit( cbind( a0 = 1, a1tilde = 1/meansSp[useForFit] ), cv2Sp[useForFit] )
+        a0 <- unname( fit$coefficients["a0"] )
+        a1 <- unname( fit$coefficients["a1tilde"] - xi )
+
+        # Test
+        psia1theta <- a1
+        minBiolDisp <- minBiolDisp^2
+        m = ncol(countsSp);
+        cv2th <- a0 + minBiolDisp + a0 * minBiolDisp
+        testDenom <- (meansGenes*psia1theta + meansGenes^2*cv2th)/(1+cv2th/m)
+        p <- 1-pchisq(varsGenes * (m-1)/testDenom,m-1)
+        padj <- p.adjust(p,"BH")
+        sig <- padj < fdr
+        sig[is.na(sig)] <- FALSE
+        if (!suppress.plot) {
+                plot( meansGenes,cv2Genes, xaxt="n", yaxt="n", log="xy",
+                        xlab = "average normalized read count",
+                        ylab = "squared coefficient of variation (CV^2)", col="white")
+                axis( 1, 10^(-2:5), c( "0.01", "0.1", "1", "10", "100", "1000",
+                        expression(10^4), expression(10^5) ) )
+                axis( 2, 10^(-2:3), c( "0.01", "0.1", "1", "10", "100","1000" ), las=2 )
+                abline( h=10^(-2:1), v=10^(-1:5), col="#D0D0D0", lwd=2 )
+                # Plot the genes, use a different color if they are highly variable
+                points( meansGenes, cv2Genes, pch=20, cex=.2,
+                        col = ifelse( padj < .1, "#C0007090", colGenes ) )
+                # Add the technical noise fit
+                xg <- 10^seq( -2, 6, length.out=1000 )
+                lines( xg, (xi+a1)/xg + a0, col="#FF000080", lwd=3 )
+                # Add a curve showing the expectation for the chosen biological CV^2 thershold
+                lines( xg, psia1theta/xg + a0 + minBiolDisp, lty="dashed", col="#C0007090", lwd=3)
+        }
+        return(names(meansGenes)[sig])
+}
+

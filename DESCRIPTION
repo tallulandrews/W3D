@@ -4,6 +4,6 @@ Date: 2015-09-29
 Title: Working With Weighted Dropouts
 Author: Tallulah Andrews <tallulandrews@gmail.com>
 Maintainer: Tallulah Andrews <tallulandrews@gmail.com>
-Depends: R (>= 3.0.0), RColorBrewer, gplots
+Depends: R (>= 3.0.0), RColorBrewer, gplots, bbmle
 Description: A package for working with single-cell RNASeq gene expression data that contains a large number of zero values (dropouts).
 License: BSD
