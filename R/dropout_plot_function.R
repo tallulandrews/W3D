@@ -185,7 +185,7 @@ bg__fit_logistic <- function(p,s) {
 	B1err = thing@coef[2,2]
 	predicted = (1/(1+exp(-B0+B1*log(s)/log(10))))
 	residuals = p-predicted
-	return(list(B0=B0,B0err=B0err,B1=B1,B1err=B1err,fitted_err = res_err,predictions=predicted, model=c("Logistic",paste("Intercept =",round(logistic$coeff[1],digits=3))),SSr=round(sum((residuals)^2)),SAr=round(sum(abs(residuals)))))
+	return(list(B0=B0,B0err=B0err,B1=B1,B1err=B1err,fitted_err = res_err,predictions=predicted, model=c("Logistic",paste("Intercept =",round(B0,digits=3)),paste("B1 =",round(B1,digits=3))),SSr=round(sum((residuals)^2)),SAr=round(sum(abs(residuals)))))
 }
 
 bg__fit_ZIFA <- function(p,s) {
@@ -206,7 +206,7 @@ bg__fit_ZIFA <- function(p,s) {
 	Lerr = thing@coef[1,2]
 	predicted = exp(-lambda*s*s)
 	residuals = p-predicted
-	return(list(lambda=lamba,Lerr=Lerr,fitted_err = res_err,predictions=predicted, model=c("p ~ e^(-lambda*S^2)",paste("lambda =",round(lambda,digits=2))),SSr=round(sum((residuals)^2)),SAr=round(sum(abs(residuals)))))
+	return(list(lambda=lambda,Lerr=Lerr,fitted_err = res_err,predictions=predicted, model=c("p ~ e^(-lambda*S^2)",paste("lambda =",round(lambda,digits=2))),SSr=round(sum((residuals)^2)),SAr=round(sum(abs(residuals)))))
 }
 
 # Normalization Functions
@@ -467,7 +467,7 @@ Brennecke_getVariableGenes <- function(data, spikes=NA, suppress.plot=FALSE, fdr
         if (sum(useForFit) < 50) {warning(paste("Only", sum(useForFit), "spike-ins to be used in fitting, may result in poor fit."))}
         fit <- glmgam.fit( cbind( a0 = 1, a1tilde = 1/meansSp[useForFit] ), cv2Sp[useForFit] )
         a0 <- unname( fit$coefficients["a0"] )
-        a1 <- unname( fit$coefficients["a1tilde"] - xi )
+        a1 <- unname( fit$coefficients["a1tilde"])
 
         # Test
         psia1theta <- a1
@@ -492,7 +492,7 @@ Brennecke_getVariableGenes <- function(data, spikes=NA, suppress.plot=FALSE, fdr
                         col = ifelse( padj < .1, "#C0007090", colGenes ) )
                 # Add the technical noise fit
                 xg <- 10^seq( -2, 6, length.out=1000 )
-                lines( xg, (xi+a1)/xg + a0, col="#FF000080", lwd=3 )
+                lines( xg, (a1)/xg + a0, col="#FF000080", lwd=3 )
                 # Add a curve showing the expectation for the chosen biological CV^2 thershold
                 lines( xg, psia1theta/xg + a0 + minBiolDisp, lty="dashed", col="#C0007090", lwd=3)
         }
