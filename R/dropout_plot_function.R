@@ -427,7 +427,6 @@ W3D_Get_Extremes <- function(data_list, weights, fdr_threshold = 0.1, v_threshol
 #from : http://www.nature.com/nmeth/journal/v10/n11/full/nmeth.2645.html#supplementary-information
 Brennecke_getVariableGenes <- function(data, spikes=NA, suppress.plot=FALSE, fdr=0.1, minBiolDisp=0.5) {
         require(statmod)
-        require(DESeq)
 
         rowVars <- function(x) { unlist(apply(x,1,var))}
 
