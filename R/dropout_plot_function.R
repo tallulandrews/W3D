@@ -142,25 +142,71 @@ bg__invert_MM <- function (K, p) {K*(1-p)/(p)}
 bg__horizontal_residuals_MM_log10 <- function (K, p, s) {log(s)/log(10) - log(bg__invert_MM(K,p))/log(10)}
 bg__num.zero <- function(x){sum(x==0)}
 bg__fit_MM <- function (p,s) {
-        fit = nls(p ~ 1-(s/((krt+s))),data.frame(s=s),start=list(krt=3))
-	K_glm = glm(p ~ offset(-1*log(s)), family="binomial")
-	Kerr = summary(K_glm)$coeff[1,2];
-	Kcoeff = summary(K_glm)$coeff[1,1];
-	Kerr = exp(Kcoeff+Kerr)-exp(Kcoeff)
-        predicted = fitted(fit)
-        krt=summary(fit)$parameters[1,1]
-	return(list(K=krt,Kerr=Kerr,predictions=predicted, model=c("MMenton",paste("Krt =",round(krt,digits=3))),SSr=round(sum((residuals(fit))^2)),SAr=round(sum(abs(residuals(fit))))))
+#        fit = nls(p ~ 1-(s/((krt+s))),data.frame(s=s),start=list(krt=3))
+#	K_glm = glm(p ~ offset(-1*log(s)), family="binomial")
+#	Kerr = summary(K_glm)$coeff[1,2];
+#	Kcoeff = summary(K_glm)$coeff[1,1];
+#	Kerr = exp(Kcoeff+Kerr)-exp(Kcoeff)
+#        predicted = fitted(fit)
+#        krt=summary(fit)$parameters[1,1]
+#	return(list(K=krt,Kerr=Kerr,predictions=predicted, model=c("MMenton",paste("Krt =",round(krt,digits=3))),SSr=round(sum((residuals(fit))^2)),SAr=round(sum(abs(residuals(fit))))))
+	require("bbmle")
+	LL <- function(krt,sigma) {
+		R = p-(1-(s/((krt+s))))
+		R = suppressWarnings(dnorm(R,0,sigma,log=TRUE))
+		-sum(R)
+	}
+	fit = mle2(LL,start=list(krt=3, sigma=0.25))
+	thing = summary(fit)
+	krt = thing@coef[1,1]
+	res_err = thing@coef[2,1]
+	Kerr = thing@coef[1,2]
+	predicted = 1-(/(krt+s))
+	residuals = p-predicted
+	return(list(K=krt,Kerr=Kerr,fitted_err = res_err,predictions=predicted, model=c("MMenton",paste("Krt =",round(krt,digits=3))),SSr=round(sum((residuals)^2)),SAr=round(sum(abs(residuals)))))
+
 }
 bg__fit_logistic <- function(p,s) {
-        logistic = glm(p~log(s),family="binomial")
-        predlog = fitted(logistic)
-	return(list(predictions=predlog, B0 = logistic$coeff[1], B1=logistic$coeff[2] ,model=c( "Logistic", paste("Intercept =",round(logistic$coeff[1],digits=3)),paste("Coeff =",round(logistic$coeff[2],digits=3))),SSr=round(sum((fitted(logistic)-p)^2)),SAr=round(sum(abs(fitted(logistic)-p)))));
+#        logistic = glm(p~log(s),family="binomial")
+#        predlog = fitted(logistic)
+#	return(list(predictions=predlog, B0 = logistic$coeff[1], B1=logistic$coeff[2] ,model=c( "Logistic", paste("Intercept =",round(logistic$coeff[1],digits=3)),paste("Coeff =",round(logistic$coeff[2],digits=3))),SSr=round(sum((fitted(logistic)-p)^2)),SAr=round(sum(abs(fitted(logistic)-p)))));
+	require("bbmle")
+	LL <- function(B0,B1,sigma) {
+		R = p-(1/(1+exp(-B0+B1*log(s)/log(10))))
+		R = suppressWarnings(dnorm(R,0,sigma,log=TRUE))
+		-sum(R)
+	}
+	fit = mle2(LL,start=list(B0=2, B1=-1, sigma=0.25))
+	thing = summary(fit)
+	B0 = thing@coef[1,1]
+	B1 = thing@coef[2,1]
+	res_err = thing@coef[3,1]
+	B0err = thing@coef[1,2]
+	B1err = thing@coef[2,2]
+	predicted = (1/(1+exp(-B0+B1*log(s)/log(10))))
+	residuals = p-predicted
+	return(list(B0=B0,B0err=B0err,B1=B1,B1err=B1err,fitted_err = res_err,predictions=predicted, model=c("Logistic",paste("Intercept =",round(logistic$coeff[1],digits=3))),SSr=round(sum((residuals)^2)),SAr=round(sum(abs(residuals)))))
 }
+
 bg__fit_ZIFA <- function(p,s) {
-	doubleXfit = nls(p ~ exp(-lambda*s*s),data.frame(s=s),start=list(lambda=0), algorithm="port", lower=list(lambda=0));
-	preddoubleX = fitted(doubleXfit);
-	lambda=summary(doubleXfit)$parameters[1,1];
-	return(list(predictions=preddoubleX, lambda=lambda, model=c("p ~ e^(-lambda*S^2)",paste("lambda =",signif(lambda,digits=2))),SSr = round(sum((residuals(doubleXfit))^2)),SAr = round(sum(abs(residuals(doubleXfit))))));
+#	doubleXfit = nls(p ~ exp(-lambda*s*s),data.frame(s=s),start=list(lambda=0.01), control=list(maxiter=100), algorithm="port", lower=list(lambda=0));
+#	preddoubleX = fitted(doubleXfit);
+#	lambda=summary(doubleXfit)$parameters[1,1];
+#	return(list(predictions=preddoubleX, lambda=lambda, model=c("p ~ e^(-lambda*S^2)",paste("lambda =",signif(lambda,digits=2))),SSr = round(sum((residuals(doubleXfit))^2)),SAr = round(sum(abs(residuals(doubleXfit))))));
+	require("bbmle")
+	LL <- function(lambda,sigma) {
+		R = p-exp(-lambda*s*s)
+		R = suppressWarnings(dnorm(R,0,sigma,log=TRUE))
+		-sum(R)
+	}
+	fit = mle2(LL,start=list(lambda=0.01, sigma=0.25))
+	thing = summary(fit)
+	lambda = thing@coef[1,1]
+	res_err = thing@coef[2,1]
+	Lerr = thing@coef[1,2]
+	predicted = exp(-lambda*s*s)
+	residuals = p-predicted
+	return(list(lambda=lamba,Lerr=Lerr,fitted_err = res_err,predictions=predicted, model=c("p ~ e^(-lambda*S^2)",paste("lambda =",round(lambda,digits=2))),SSr=round(sum((residuals)^2)),SAr=round(sum(abs(residuals)))))
 }
 
 # Normalization Functions
@@ -210,7 +256,7 @@ bg__normalize <- function(data) {
 # DE Genes functions
 
 # Use the fact that errors of proportions are well define by converting S to proportion detected equivalents?
-obsolete__test_DE_P_equiv <- function (norm, weights=1, fit=NA) {
+bg__test_DE_P_equiv <- function (norm, weights=1, fit=NA) {
 	gene_info = bg__calc_variables(norm, weights);
 	if (is.na(fit)) {
 		fit = bg__fit_MM(gene_info$p, gene_info$s);
@@ -221,9 +267,11 @@ obsolete__test_DE_P_equiv <- function (norm, weights=1, fit=NA) {
 	S_mean = gene_info$s
 	S_err = gene_info$s_stderr
 	K_err = fit$Kerr;
-	p_equiv = fit$K/(fit$K+S_mean);
+	p_equiv = fit$predictions;
 	propagated_err_p_equiv = p_equiv*sqrt(((S_err+K_err)/(S_mean+fit$K))^2+(K_err/fit$K)^2)
-	Z = (p_equiv - p_obs)/sqrt(p_err^2+propagated_err_p_equiv^2); # low = shifted right, high = shifted left
+	fitted_err_p_equiv = fit$fitted_err
+#	Z = (p_equiv - p_obs)/sqrt(p_err^2+propagated_err_p_equiv^2); # low = shifted right, high = shifted left
+	Z = (p_equiv - p_obs)/fitted_err_p_equiv; # low = shifted right, high = shifted left
 	pval = pnorm(Z, lower.tail=T)
 	effect_size = p_obs/p_equiv;
 	return(list(pval = pval, fold_change = effect_size))
@@ -317,11 +365,16 @@ W3D_Dropout_Models <- function(data_list, weights = 1, xlim=NA) {
 	return(list(MMfit = MM, LogiFit = SCDE, ExpoFit = ZIFA));
 }
 
-W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xlim=NA, method="propagate", mt_method="bon", mt_threshold=0.05) {
+W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xlim=NA, method="inverse", mt_method="bon", mt_threshold=0.05) {
 	BasePlot = bg__dropout_plot_base(data_list$data, weights = weights, xlim = xlim);
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	sizeloc = bg__add_model_to_plot(MM, BasePlot, lty=1, lwd=2.5, col="black",legend_loc = "topright");
-	DEoutput = bg__test_DE_S_equiv(data_list$data, weights=weights, fit=MM, method=method);
+	if (method == "normal") {
+		DEoutput = bg__test_DE_P_equiv(data_list$data, weights=weights, fit=MM);
+	} else {
+		DEoutput = bg__test_DE_S_equiv(data_list$data, weights=weights, fit=MM, method="propagate");
+	}
+
 	sig = which(p.adjust(DEoutput$pval, method=mt_method) < mt_threshold);
 	DEgenes = rownames(data_list$data)[sig];
 	DEgenes = DEgenes[!is.na(DEgenes)];
