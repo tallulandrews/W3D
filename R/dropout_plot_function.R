@@ -158,9 +158,9 @@ bg__fit_MM <- function (p,s) {
 	}
 	fit = mle2(LL,start=list(krt=3, sigma=0.25))
 	thing = summary(fit)
-	krt = thing@coef[1,1]
-	res_err = thing@coef[2,1]
-	Kerr = thing@coef[1,2]
+	krt = fit@coef[1]
+	res_err = attributes(summary(fit))$coef[2,1]
+	Kerr = fit@coef[2]
 	predicted = 1-(s/(krt+s))
 	residuals = p-predicted
 	return(list(K=krt,Kerr=Kerr,fitted_err = res_err,predictions=predicted, model=c("MMenton",paste("Krt =",round(krt,digits=3))),SSr=round(sum((residuals)^2)),SAr=round(sum(abs(residuals)))))
@@ -178,11 +178,11 @@ bg__fit_logistic <- function(p,s) {
 	}
 	fit = mle2(LL,start=list(B0=2, B1=-1, sigma=0.25))
 	thing = summary(fit)
-	B0 = thing@coef[1,1]
-	B1 = thing@coef[2,1]
-	res_err = thing@coef[3,1]
-	B0err = thing@coef[1,2]
-	B1err = thing@coef[2,2]
+	B0 = attributes(summary(fit))$coef[1,1]
+	B1 = attributes(summary(fit))$coef[2,1]
+	res_err = attributes(summary(fit))$coef[3,1]
+	B0err = attributes(summary(fit))$coef[1,2]
+	B1err = attributes(summary(fit))$coef[2,2]
 	predicted = (1/(1+exp(-B0+B1*log(s)/log(10))))
 	residuals = p-predicted
 	return(list(B0=B0,B0err=B0err,B1=B1,B1err=B1err,fitted_err = res_err,predictions=predicted, model=c("Logistic",paste("Intercept =",round(B0,digits=3)),paste("B1 =",round(B1,digits=3))),SSr=round(sum((residuals)^2)),SAr=round(sum(abs(residuals)))))
@@ -201,9 +201,9 @@ bg__fit_ZIFA <- function(p,s) {
 	}
 	fit = mle2(LL,start=list(lambda=0.01, sigma=0.25))
 	thing = summary(fit)
-	lambda = thing@coef[1,1]
-	res_err = thing@coef[2,1]
-	Lerr = thing@coef[1,2]
+	lambda = attributes(summary(fit))$coef[1,1]
+	res_err = attributes(summary(fit))$coef[2,1]
+	Lerr = attributes(summary(fit))$coef[1,2]
 	predicted = exp(-lambda*s*s)
 	residuals = p-predicted
 	return(list(lambda=lambda,Lerr=Lerr,fitted_err = res_err,predictions=predicted, model=c("p ~ e^(-lambda*S^2)",paste("lambda =",round(lambda,digits=2))),SSr=round(sum((residuals)^2)),SAr=round(sum(abs(residuals)))))
