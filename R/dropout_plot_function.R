@@ -1,9 +1,9 @@
 # Modularize this stuff more sensibly
 #  Plotting Functions
-bg__dropout_plot_base <- function (norm, weights = 1, xlim = NA, suppress.plot=FALSE) {
+bg__dropout_plot_base <- function (expr_mat, weights = 1, xlim = NA, suppress.plot=FALSE) {
 	require("RColorBrewer")
 	
-	gene_info = bg__calc_variables(norm,weights);
+	gene_info = bg__calc_variables(expr_mat,weights);
 
         xes = log(gene_info$s)/log(10);
         put_in_order = order(xes);
@@ -22,7 +22,7 @@ bg__dropout_plot_base <- function (norm, weights = 1, xlim = NA, suppress.plot=F
 	        	plot(xes,gene_info$p, main="", ylab="Dropout Proportion", xlab="log(expression)", col = dens.col,pch=16)
 		}
 	}
-	return(list(P=gene_info$p, S=gene_info$s, xes=xes, data=norm, weights=weights, order=put_in_order));
+	return(list(P=gene_info$p, S=gene_info$s, xes=xes, data=expr_mat, weights=weights, order=put_in_order));
 }
 
 bg__add_model_to_plot <- function(fitted_model, base_plot, lty=1, lwd=1, col="black",legend_loc = "topright") {
@@ -118,23 +118,23 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
 }
 
 # Model-fitting/manipulation Functions
-bg__calc_variables <- function(norm, weights = 1) {
+bg__calc_variables <- function(expr_mat, weights = 1) {
         # Calc variables
-	if (length(dim(weights)) == 2 & prod(dim(weights) == dim(norm))) {
-		p = rowZero_wgt(norm,weights)/rowSums(weights);
-        	s = rowMeans_wgt(norm,weights);
-		s_stderr = sqrt(rowVar_wgt(norm,weights))/sqrt(rowSums(weights));
+	if (length(dim(weights)) == 2 & prod(dim(weights) == dim(expr_mat))) {
+		p = rowZero_wgt(expr_mat,weights)/rowSums(weights);
+        	s = rowMeans_wgt(expr_mat,weights);
+		s_stderr = sqrt(rowVar_wgt(expr_mat,weights))/sqrt(rowSums(weights));
 		p_stderr = sqrt(p*(1-p)/rowSums(weights));
 	} else {
 		print("Weights not provided or not same dimension as expression matrix. Using unweighted version.")
-	        p = apply(norm,1,function(x){y = x[!is.na(x)]; sum(y==0)/length(y)});
-	        s = rowMeans(norm, na.rm=T);
-		s_stderr = unlist(apply(norm,1,sd));
-		s_stderr = unlist(apply(norm,1,sd))/sqrt(length(norm[1,]));
-		p_stderr = sqrt(p*(1-p)/length(norm[1,]));
+	        p = apply(expr_mat,1,function(x){y = x[!is.na(x)]; sum(y==0)/length(y)});
+	        s = rowMeans(expr_mat, na.rm=T);
+		s_stderr = unlist(apply(expr_mat,1,sd));
+		s_stderr = unlist(apply(expr_mat,1,sd))/sqrt(length(expr_mat[1,]));
+		p_stderr = sqrt(p*(1-p)/length(expr_mat[1,]));
 	}
-	names(s) = rownames(norm);
-	names(p) = rownames(norm);
+	names(s) = rownames(expr_mat);
+	names(p) = rownames(expr_mat);
 	return(list(s = s, p = p, s_stderr = s_stderr, p_stderr = p_stderr))
 }
 
@@ -256,13 +256,13 @@ bg__normalize <- function(data) {
 # DE Genes functions
 
 # Use the fact that errors of proportions are well define by converting S to proportion detected equivalents?
-bg__test_DE_P_equiv <- function (norm, weights=1, fit=NA) {
-	gene_info = bg__calc_variables(norm, weights);
+bg__test_DE_P_equiv <- function (expr_mat, weights=1, fit=NA) {
+	gene_info = bg__calc_variables(expr_mat, weights);
 	if (is.na(fit)) {
 		fit = bg__fit_MM(gene_info$p, gene_info$s);
 	}
 	p_obs = gene_info$p;
-	N = length(norm[1,]);
+	N = length(expr_mat[1,]);
 	p_err = gene_info$p_stderr;
 	S_mean = gene_info$s
 	S_err = gene_info$s_stderr
@@ -278,13 +278,13 @@ bg__test_DE_P_equiv <- function (norm, weights=1, fit=NA) {
 }
 
 # Use the fact that S as a function of P is more stable to noise for the main part of the curve
-bg__test_DE_S_equiv <- function (norm, weights=1, fit=NA, method="propagate") {
-	gene_info = bg__calc_variables(norm, weights);
+bg__test_DE_S_equiv <- function (expr_mat, weights=1, fit=NA, method="propagate") {
+	gene_info = bg__calc_variables(expr_mat, weights);
 	if (is.na(fit[1])) {
 		fit = bg__fit_MM(gene_info$p, gene_info$s);
 	}
 	p_obs = gene_info$p;
-	N = length(norm[1,]);
+	N = length(expr_mat[1,]);
 	p_err = gene_info$p_stderr;
 	S_mean = gene_info$s
 	S_err = gene_info$s_stderr
@@ -312,8 +312,8 @@ bg__test_DE_S_equiv <- function (norm, weights=1, fit=NA, method="propagate") {
 	return(list(pval = pval, effect = effect_size))
 }
 
-bg__get_extreme_residuals <- function (norm,weights, fit=NA, v_threshold=c(0.05,0.95), fdr_threshold = 0.1, direction="right", suppress.plot = FALSE) {
-	gene_info = bg__calc_variables(norm, weights);
+bg__get_extreme_residuals <- function (expr_mat,weights, fit=NA, v_threshold=c(0.05,0.95), fdr_threshold = 0.1, direction="right", suppress.plot = FALSE) {
+	gene_info = bg__calc_variables(expr_mat, weights);
 	if (is.na(fit)) {
 		fit = bg__fit_MM(gene_info$p, gene_info$s);
 	}
@@ -350,8 +350,8 @@ bg__get_extreme_residuals <- function (norm,weights, fit=NA, v_threshold=c(0.05,
 W3D_Clean_Data <- function(data, labels = NA, suppress.plot=FALSE) {
 	data = bg__filter_genes(data);
 	data = bg__filter_cells(data, labels, suppress.plot = suppress.plot);
-	norm = bg__normalize(data$data);
-	return(list(data = norm, labels=labels));
+	expr_mat = bg__normalize(data$data);
+	return(list(data = expr_mat, labels=labels));
 }
 
 W3D_Dropout_Models <- function(data_list, weights = 1, xlim=NA) {
