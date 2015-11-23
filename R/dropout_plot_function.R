@@ -86,7 +86,7 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
 	lmat=rbind(c(6,0,5),c(0,0,2),c(4,1,3))
 
 
-	heatmap.2(heat_data, ColSideColors = ColColors, RowSideColors = RowColors, col=heatcolours, breaks=col_breaks, scale="row",symbreaks=T, trace="none", dendrogram="column", key=FALSE, Rowv=TRUE, Colv=TRUE,lwid=lwid, lhei=lhei,lmat=lmat)
+	heatmap.2(heat_data, ColSideColors = ColColors, RowSideColors = RowColors, col=heatcolours, breaks=col_breaks, scale="row",symbreaks=T, trace="none", dendrogram="column", key=FALSE, Rowv=TRUE, Colv=TRUE,lwid=lwid, lhei=lhei,lmat=lmat, hclustfun=function(x){hclust(x,method="ward.D2")})
 	# Custom key
 	par(fig = c(0, 1/(5.2),4/(5.2), 1), mar=c(4,1,1,1), new=TRUE)
 	scale01 <- function(x, low = min(x), high = max(x)) {
@@ -124,18 +124,21 @@ bg__calc_variables <- function(expr_mat, weights = 1) {
 		p = rowZero_wgt(expr_mat,weights)/rowSums(weights);
         	s = rowMeans_wgt(expr_mat,weights);
 		s_stderr = sqrt(rowVar_wgt(expr_mat,weights))/sqrt(rowSums(weights));
+		tmp = weights; tmp[tmp<1] = 0;
+		s_stderr_nozero = sqrt(rowVar_wgt(expr_mat,tmp))/sqrt(rowSums(tmp));
 		p_stderr = sqrt(p*(1-p)/rowSums(weights));
 	} else {
 		print("Weights not provided or not same dimension as expression matrix. Using unweighted version.")
 	        p = apply(expr_mat,1,function(x){y = x[!is.na(x)]; sum(y==0)/length(y)});
 	        s = rowMeans(expr_mat, na.rm=T);
-		s_stderr = unlist(apply(expr_mat,1,sd));
 		s_stderr = unlist(apply(expr_mat,1,sd))/sqrt(length(expr_mat[1,]));
+		tmp = expr_mat; tmp[tmp == 0] = NA
+		s_stderr_nozero = unlist(apply(tmp,1,sd, na.rm=T))/sqrt(rowSums(expr_mat>0));
 		p_stderr = sqrt(p*(1-p)/length(expr_mat[1,]));
 	}
 	names(s) = rownames(expr_mat);
 	names(p) = rownames(expr_mat);
-	return(list(s = s, p = p, s_stderr = s_stderr, p_stderr = p_stderr))
+	return(list(s = s, p = p, s_stderr = s_stderr, s_stderr_nozero = s_stderr_nozero, p_stderr = p_stderr))
 }
 
 bg__invert_MM <- function (K, p) {K*(1-p)/(p)}
@@ -255,6 +258,25 @@ bg__normalize <- function(data) {
 
 # DE Genes functions
 
+bg__test_DE_K_equiv <- function (expr_mat, weights=1, fit=NA) {
+	gene_info = bg__calc_variables(expr_mat, weights);
+	if (is.na(fit)) {
+		fit = bg__fit_MM(gene_info$p, gene_info$s);
+	}
+	p_obs = gene_info$p;
+	N = length(expr_mat[1,]);
+	p_err = gene_info$p_stderr;
+	S_mean = gene_info$s
+	S_err = gene_info$s_stderr
+	K_err = fit$Kerr;
+	K_equiv = p_obs*S_mean/(1-p_obs);
+	K_equiv_err = p_obs/(1-p_obs)*S_err
+		
+	Z = (K_equiv - fit$K)/sqrt(K_equiv_err^2+K_err^2); # high = shifted right, low = shifted left
+	pval = pnorm(Z, lower.tail=F)
+	effect_size = K_equiv/fit$K;
+	return(list(pval = pval, fold_change = effect_size))
+}
 # Use the fact that errors of proportions are well define by converting S to proportion detected equivalents?
 bg__test_DE_P_equiv <- function (expr_mat, weights=1, fit=NA) {
 	gene_info = bg__calc_variables(expr_mat, weights);
@@ -312,39 +334,50 @@ bg__test_DE_S_equiv <- function (expr_mat, weights=1, fit=NA, method="propagate"
 	return(list(pval = pval, effect = effect_size))
 }
 
-bg__get_extreme_residuals <- function (expr_mat,weights, fit=NA, v_threshold=c(0.05,0.95), fdr_threshold = 0.1, direction="right", suppress.plot = FALSE) {
+bg__get_extreme_residuals <- function (expr_mat,weights, fit=NA, v_threshold=c(0.05,0.95), perc_most_extreme = NA, fdr_threshold = 0.1, direction="right", suppress.plot = FALSE) {
 	gene_info = bg__calc_variables(expr_mat, weights);
 	if (is.na(fit)) {
 		fit = bg__fit_MM(gene_info$p, gene_info$s);
 	}
 	res = bg__horizontal_residuals_MM_log10(fit$K, gene_info$p, gene_info$s)
 	res = res[gene_info$p < max(v_threshold) & gene_info$p > min(v_threshold)]
-	mu = mean(res); sigma = sd(res);
-	# deal with potential bi-modality
-	if (sum(res > mu-sigma & res < mu+sigma) < 0.5) { # should be 0.68 theoretically
-		mu = mean(res[res > quantile(res,0.33)]);
-		sigma = sd(res[res > quantile(res,0.33)]);
-	}
 
-	if (direction=="right") {
-		pval =pnorm((res-mu)/sigma, lower.tail=F)
-	} else {
-		pval = pnorm((res-mu)/sigma, lower.tail=T)
-	}
-	qval = p.adjust(pval, method="fdr");
-	sig = qval < fdr_threshold;
-
-	# Plot fitted normal curve
-	if (!suppress.plot) {
-		hist(res, col="grey75", xlab="horizontal residuals", main="", prob=TRUE)
-		curve(dnorm(x,mean=mu, sd=sigma), add=TRUE);
-		if (direction=="right" & sum(sig) > 0) {
-			abline(v=min(res[sig]), col="red");
+	if (is.na(perc_most_extreme)) {
+		mu = mean(res); sigma = sd(res);
+		# deal with potential bi-modality
+		if (sum(res > mu-sigma & res < mu+sigma) < 0.5) { # should be 0.68 theoretically
+			mu = mean(res[res > quantile(res,0.33)]);
+			sigma = sd(res[res > quantile(res,0.33)]);
+		}
+	
+		if (direction=="right") {
+			pval =pnorm((res-mu)/sigma, lower.tail=F)
 		} else {
-			abline(v=max(res[sig]), col="red");
+			pval = pnorm((res-mu)/sigma, lower.tail=T)
+		}
+		qval = p.adjust(pval, method="fdr");
+		sig = qval < fdr_threshold;
+
+		# Plot fitted normal curve
+		if (!suppress.plot) {
+			hist(res, col="grey75", xlab="horizontal residuals", main="", prob=TRUE)
+			curve(dnorm(x,mean=mu, sd=sigma), add=TRUE);
+			if (direction=="right" & sum(sig) > 0) {
+				abline(v=min(res[sig]), col="red");
+			} else {
+				abline(v=max(res[sig]), col="red");
+			}
+		}
+		return(names(pval)[sig]);
+	} else {
+		if (direction=="right") {
+			cut_off = quantile(res,prob=1-perc_most_extreme);
+			return(names(res)[res > cut_off]);
+		} else {
+			cut_off = quantile(res,prob=perc_most_extreme);
+			return(names(res)[res < cut_off]);
 		}
 	}
-	return(names(pval)[sig]);
 }
 ##### Assembled Analysis Chunks ####
 W3D_Clean_Data <- function(data, labels = NA, suppress.plot=FALSE) {
@@ -372,7 +405,7 @@ W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xli
 	if (method == "normal") {
 		DEoutput = bg__test_DE_P_equiv(data_list$data, weights=weights, fit=MM);
 	} else {
-		DEoutput = bg__test_DE_S_equiv(data_list$data, weights=weights, fit=MM, method="propagate");
+		DEoutput = bg__test_DE_K_equiv(data_list$data, weights=weights, fit=MM);
 	}
 
 	sig = which(p.adjust(DEoutput$pval, method=mt_method) < mt_threshold);
@@ -412,12 +445,18 @@ W3D_Expression_Heatmap <- function(Genes, Expr_Mat, cell_labels=NA, interesting_
 	bg__expression_heatmap(Genes, Expr_Mat, cell_labels=cell_labels, gene_labels=as.numeric(gene_labels));
 }
 
-W3D_Get_Extremes <- function(data_list, weights, fdr_threshold = 0.1, v_threshold=c(0.05,0.95)) {
+W3D_Get_Extremes <- function(data_list, weights, fdr_threshold = 0.1, percent = NA, v_threshold=c(0.05,0.95)) {
 	BasePlot = bg__dropout_plot_base(data_list$data, weights = weights, xlim = NA);
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	sizeloc = bg__add_model_to_plot(MM, BasePlot, lty=1, lwd=2.5, col="black",legend_loc = "topright");
-	shifted_right = bg__get_extreme_residuals(data_list$data,weights, fit=MM, v_threshold=v_threshold, fdr_threshold = fdr_threshold, direction="right", suppress.plot=TRUE)
-	shifted_left  = bg__get_extreme_residuals(data_list$data,weights, fit=MM, v_threshold=v_threshold, fdr_threshold = fdr_threshold, direction="left",  suppress.plot=TRUE)
+	if (is.na(percent)) {
+		shifted_right = bg__get_extreme_residuals(data_list$data,weights, fit=MM, v_threshold=v_threshold, fdr_threshold = fdr_threshold, direction="right", suppress.plot=TRUE)
+		shifted_left  = bg__get_extreme_residuals(data_list$data,weights, fit=MM, v_threshold=v_threshold, fdr_threshold = fdr_threshold, direction="left",  suppress.plot=TRUE)
+	} else {
+		shifted_right = bg__get_extreme_residuals(data_list$data,weights, fit=MM, v_threshold=v_threshold, perc_most_extreme = percent, direction="right", suppress.plot=TRUE)
+		shifted_left  = bg__get_extreme_residuals(data_list$data,weights, fit=MM, v_threshold=v_threshold, perc_most_extreme = percent, direction="left",  suppress.plot=TRUE)
+
+	}
 	bg__highlight_genes(BasePlot, shifted_right, colour="orange");
 	bg__highlight_genes(BasePlot, shifted_left, colour="purple");
 	return(list(left=shifted_left,right=shifted_right));
