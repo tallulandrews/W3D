@@ -47,7 +47,7 @@ bg__highlight_genes <- function (base_plot, genes, colour="purple", pch=16) {
 	points(base_plot$xes[genes],base_plot$P[genes],col=colour, pch=pch)
 }
 
-bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA) { # Should weighting be taken into account for heatmap clustering?
+bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA, key_genes=NA, key_cells=NA) { # Should weighting be taken into account for heatmap clustering? - too much of a pain
 	require("RColorBrewer")
 	require("gplots")
 	if(!is.numeric(genes)) {
@@ -64,6 +64,15 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA)
 	heat_data = log(heat_data+1)/log(2);
 	ColColors = rep("white", times=length(heat_data[1,]))
 	RowColors = rep("white", times=length(heat_data[,1]))
+	# remove row & column labels
+	colnames(heat_data) = rep("", length(heat_data[1,]));
+	rownames(heat_data) = rep("", length(heat_data[,1]));
+	if (!is.na(key_genes)) {
+		rownames(heat_data)[rownames(data[genes,]) %in% key_genes] = rownames(data[genes,])[rownames(data[genes,]) %in% key_genes]; 
+	}
+	if (!is.na(key_cells)) {
+		colnames(heat_data)[colnames(data[genes,]) %in% key_cells] = colnames(data[genes,])[colnames(data[genes,]) %in% key_cells]; 
+	}
 	if (!is.na(cell_labels[1])) {
 		colours = as.factor(cell_labels)
 		palette = brewer.pal(max(3,length(unique(cell_labels))), "Set3");
@@ -398,18 +407,18 @@ W3D_Dropout_Models <- function(data_list, weights = 1, xlim=NA) {
 	return(list(MMfit = MM, LogiFit = SCDE, ExpoFit = ZIFA));
 }
 
-W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xlim=NA, method="inverse", mt_method="bon", mt_threshold=0.05) {
-	BasePlot = bg__dropout_plot_base(data_list$data, weights = weights, xlim = xlim);
+W3D_Differential_Expression <- function(data, weights=1, xlim=NA, method="inverse", mt_method="bon", mt_threshold=0.05) {
+	BasePlot = bg__dropout_plot_base(data, weights = weights, xlim = xlim);
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	sizeloc = bg__add_model_to_plot(MM, BasePlot, lty=1, lwd=2.5, col="black",legend_loc = "topright");
 	if (method == "normal") {
-		DEoutput = bg__test_DE_P_equiv(data_list$data, weights=weights, fit=MM);
+		DEoutput = bg__test_DE_P_equiv(data, weights=weights, fit=MM);
 	} else {
-		DEoutput = bg__test_DE_K_equiv(data_list$data, weights=weights, fit=MM);
+		DEoutput = bg__test_DE_K_equiv(data, weights=weights, fit=MM);
 	}
 
 	sig = which(p.adjust(DEoutput$pval, method=mt_method) < mt_threshold);
-	DEgenes = rownames(data_list$data)[sig];
+	DEgenes = rownames(data)[sig];
 	DEgenes = DEgenes[!is.na(DEgenes)];
 	bg__highlight_genes(BasePlot, DEgenes);
 	
@@ -429,7 +438,7 @@ W3D_Differential_Expression <- function(data_list, weights, knownDEgenes=NA, xli
 	return(TABLE)
 }
 
-W3D_Expression_Heatmap <- function(Genes, Expr_Mat, cell_labels=NA, interesting_genes=NA) {
+W3D_Expression_Heatmap <- function(Genes, Expr_Mat, cell_labels=NA, interesting_genes=NA, marker_genes=NA, outlier_cells=NA) {
 	# Converted known DE genes into heatmap labels 
 	gene_labels = rep(1, times = length(Genes));
 	if (is.na(interesting_genes)) {
@@ -442,7 +451,13 @@ W3D_Expression_Heatmap <- function(Genes, Expr_Mat, cell_labels=NA, interesting_
         } else {
                 gene_labels[Genes %in% interesting_genes] = 2;
         }
-	bg__expression_heatmap(Genes, Expr_Mat, cell_labels=cell_labels, gene_labels=as.numeric(gene_labels));
+	if (is.numeric(marker_genes) | is.logical(marker_genes)) {
+		marker_genes = rownames(Expr_Mat)[marker_genes];
+	}
+	if (is.numeric(outlier_cells) | is.logical(outlier_cells)) {
+		marker_genes = rownames(Expr_Mat)[outlier_cells];
+	}
+	bg__expression_heatmap(Genes, Expr_Mat, cell_labels=cell_labels, gene_labels=as.numeric(gene_labels), key_genes=as.character(marker_genes), key_cells=outlier_cells);
 }
 
 W3D_Get_Extremes <- function(data_list, weights, fdr_threshold = 0.1, percent = NA, v_threshold=c(0.05,0.95)) {
