@@ -95,7 +95,7 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA,
 	lmat=rbind(c(6,0,5),c(0,0,2),c(4,1,3))
 
 
-	heatmap.2(heat_data, ColSideColors = ColColors, RowSideColors = RowColors, col=heatcolours, breaks=col_breaks, scale="row",symbreaks=T, trace="none", dendrogram="column", key=FALSE, Rowv=TRUE, Colv=TRUE,lwid=lwid, lhei=lhei,lmat=lmat, hclustfun=function(x){hclust(x,method="ward.D2")})
+	heatmap_output = heatmap.2(heat_data, ColSideColors = ColColors, RowSideColors = RowColors, col=heatcolours, breaks=col_breaks, scale="row",symbreaks=T, trace="none", dendrogram="column", key=FALSE, Rowv=TRUE, Colv=TRUE,lwid=lwid, lhei=lhei,lmat=lmat, hclustfun=function(x){hclust(x,method="ward.D2")})
 	# Custom key
 	par(fig = c(0, 1/(5.2),4/(5.2), 1), mar=c(4,1,1,1), new=TRUE)
 	scale01 <- function(x, low = min(x), high = max(x)) {
@@ -124,6 +124,7 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA,
 	if (!is.na(cell_labels[1])) {
 		legend("left", mylegend$names, pt.bg = mylegend$fill,bg="white",col="black", pch=22, pt.cex=2.5, cex=1.25, bty="n",y.intersp = 2);
 	}
+	return(heatmap_output);
 }
 
 # Model-fitting/manipulation Functions
@@ -457,7 +458,8 @@ W3D_Expression_Heatmap <- function(Genes, Expr_Mat, cell_labels=NA, interesting_
 	if (is.numeric(outlier_cells) | is.logical(outlier_cells)) {
 		marker_genes = rownames(Expr_Mat)[outlier_cells];
 	}
-	bg__expression_heatmap(Genes, Expr_Mat, cell_labels=cell_labels, gene_labels=as.numeric(gene_labels), key_genes=as.character(marker_genes), key_cells=outlier_cells);
+	heatmap_output = bg__expression_heatmap(Genes, Expr_Mat, cell_labels=cell_labels, gene_labels=as.numeric(gene_labels), key_genes=as.character(marker_genes), key_cells=outlier_cells);
+	return(heatmap_output);
 }
 
 W3D_Get_Extremes <- function(data_list, weights, fdr_threshold = 0.1, percent = NA, v_threshold=c(0.05,0.95)) {
