@@ -65,11 +65,11 @@ bg__expression_heatmap <- function (genes, data, cell_labels=NA, gene_labels=NA,
 	ColColors = rep("white", times=length(heat_data[1,]))
 	RowColors = rep("white", times=length(heat_data[,1]))
 	# remove row & column labels
-	colnames(heat_data) = rep("", length(heat_data[1,]));
 	rownames(heat_data) = rep("", length(heat_data[,1]));
 	if (!is.na(key_genes)) {
 		rownames(heat_data)[rownames(data[genes,]) %in% key_genes] = rownames(data[genes,])[rownames(data[genes,]) %in% key_genes]; 
 	}
+	colnames(heat_data) = rep("", length(heat_data[1,]));
 	if (!is.na(key_cells)) {
 		colnames(heat_data)[colnames(data[genes,]) %in% key_cells] = colnames(data[genes,])[colnames(data[genes,]) %in% key_cells]; 
 	}
@@ -226,32 +226,39 @@ bg__fit_ZIFA <- function(p,s) {
 bg__UQ <- function(x){quantile(x[x>0],0.75)};
 bg__filter_genes <- function(data) {
         # get rid of genes with 0 expression
-        filter <- apply(data, 1, function(x) length(x[x>5])>=2);
+#        filter <- apply(data, 1, function(x) length(x[x>5])>=2);
+	filter = rowSums(data > 5) >=2;
         data = data[filter,];
 	return(data);
 }
 
-bg__filter_cells <- function(data,labels=NA, suppress.plot=FALSE) {
-	cell_zero = apply(data,2, bg__num.zero)/length(data[,1]);
-	mu = mean(cell_zero);
-	sigma = sd(cell_zero);
-	# Deal with bi-modal
-	if (sum(cell_zero > mu-sigma & cell_zero < mu+sigma) < 0.5) { # should be 0.68 theoretically
-		mu = mean(cell_zero[cell_zero < median(cell_zero)]);
-		sigma = sd(cell_zero[cell_zero < median(cell_zero)]);
+bg__filter_cells <- function(data,labels=NA, suppress.plot=FALSE, threshold=NA) {
+	num_detected =  colSums(data > 0);
+	if (!is.na(threshold)) {
+		low_quality = num_detected < threshold;
+	} else {
+		num_zero = colSums(data == 0);
+		cell_zero = num_zero/length(data[,1]);
+		mu = mean(cell_zero);
+		sigma = sd(cell_zero);
+		# Deal with bi-modal
+		if (sum(cell_zero > mu-sigma & cell_zero < mu+sigma) < 0.5) { # should be 0.68 theoretically
+			mu = mean(cell_zero[cell_zero < median(cell_zero)]);
+			sigma = sd(cell_zero[cell_zero < median(cell_zero)]);
+		}
+		if (!suppress.plot) {
+			hist(cell_zero, col="grey75", xlab="Number of zeros (per cell)", main="", prob=TRUE)
+			curve(dnorm(x,mean=mu, sd=sigma), add=TRUE)
+			if (sum(low_quality) > 0) {
+				abline(v=min(cell_zero[low_quality]), col="red")
+			}
+		}
+		low_quality = p.adjust(pnorm((cell_zero-mu)/sigma, lower.tail=F), method="fdr") < 0.05;
 	}
-	low_quality = p.adjust(pnorm((cell_zero-mu)/sigma, lower.tail=F), method="fdr") < 0.05;
 	if (sum(low_quality) > 0) {
 		data = data[,!low_quality];
 		cell_zero = cell_zero[!low_quality];
 		if (!is.na(labels)) {labels = labels[!low_quality]}
-	}
-	if (!suppress.plot) {
-		hist(cell_zero, col="grey75", xlab="Number of zeros (per cell)", main="", prob=TRUE)
-		curve(dnorm(x,mean=mu, sd=sigma), add=TRUE)
-		if (sum(low_quality) > 0) {
-			abline(v=min(cell_zero[low_quality]), col="red")
-		}
 	}
 	return(list(data = data, labels = labels));
 }
@@ -390,15 +397,38 @@ bg__get_extreme_residuals <- function (expr_mat,weights, fit=NA, v_threshold=c(0
 	}
 }
 ##### Assembled Analysis Chunks ####
-W3D_Clean_Data <- function(data, labels = NA, suppress.plot=FALSE) {
-	data = bg__filter_genes(data);
-	data = bg__filter_cells(data, labels, suppress.plot = suppress.plot);
-	expr_mat = bg__normalize(data$data);
-	return(list(data = expr_mat, labels=labels));
+W3D_Clean_Data <- function(data, labels = NA, is.counts=TRUE, suppress.plot=FALSE, pseudo_genes=NA, min_detected_genes=NA) {
+	if (length(pseudo_genes) > 1) {
+		is_pseudo = rownames(data) %in% pseudo;
+	        data = data[!is_pseudo,];
+	}
+
+	data = bg__filter_cells(data, labels, suppress.plot = suppress.plot, threshold=min_detected_genes);
+
+        detected = rowSums(data > 0) > 3;
+        data = data[detected,];
+
+	spikes = grep("ercc",rownames(data), ignore.case=TRUE)
+	if (is.counts) {
+                totreads = colSums(data[-c(spikes),])
+                cpm = t(t(data)/totreads)*1000000;
+                lowExpr = rowMeans(cpm) < 10^-5;
+                cpm=cpm[!lowExpr,];
+                return(list(data=cpm, labels=labels));
+        }
+
+	lowExpr = rowMeans(data) < 10^-5;
+        data=data[!lowExpr,];
+        return(list(data=data, labels=labels));
+
+
+#	data = bg__filter_genes(data);
+#	expr_mat = bg__normalize(data$data);
+#	return(list(data = expr_mat, labels=labels));
 }
 
-W3D_Dropout_Models <- function(data_list, weights = 1, xlim=NA) {
-	BasePlot = bg__dropout_plot_base(data_list$data, weights = weights, xlim = xlim);
+W3D_Dropout_Models <- function(data, weights = 1, xlim=NA) {
+	BasePlot = bg__dropout_plot_base(data$data, weights = weights, xlim = xlim);
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	SCDE = bg__fit_logistic(BasePlot$P, BasePlot$S);
 	ZIFA = bg__fit_ZIFA(BasePlot$P, BasePlot$S);
@@ -456,7 +486,7 @@ W3D_Expression_Heatmap <- function(Genes, Expr_Mat, cell_labels=NA, interesting_
 		marker_genes = rownames(Expr_Mat)[marker_genes];
 	}
 	if (is.numeric(outlier_cells) | is.logical(outlier_cells)) {
-		marker_genes = rownames(Expr_Mat)[outlier_cells];
+		outlier_cells = rownames(Expr_Mat)[outlier_cells];
 	}
 	heatmap_output = bg__expression_heatmap(Genes, Expr_Mat, cell_labels=cell_labels, gene_labels=as.numeric(gene_labels), key_genes=as.character(marker_genes), key_cells=outlier_cells);
 	return(heatmap_output);
