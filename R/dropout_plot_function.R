@@ -180,25 +180,25 @@ bg__fit_MM <- function (p,s) {
 
 }
 bg__fit_logistic <- function(p,s) {
-#        logistic = glm(p~log(s),family="binomial")
-#        predlog = fitted(logistic)
-#	return(list(predictions=predlog, B0 = logistic$coeff[1], B1=logistic$coeff[2] ,model=c( "Logistic", paste("Intercept =",round(logistic$coeff[1],digits=3)),paste("Coeff =",round(logistic$coeff[2],digits=3))),SSr=round(sum((fitted(logistic)-p)^2)),SAr=round(sum(abs(fitted(logistic)-p)))));
-	require("bbmle")
-	LL <- function(B0,B1,sigma) {
-		R = p-(1/(1+exp(-B0+B1*log(s)/log(10))))
-		R = suppressWarnings(dnorm(R,0,sigma,log=TRUE))
-		-sum(R)
-	}
-	fit = mle2(LL,start=list(B0=2, B1=-1, sigma=0.25))
-	thing = summary(fit)
-	B0 = attributes(summary(fit))$coef[1,1]
-	B1 = attributes(summary(fit))$coef[2,1]
-	res_err = attributes(summary(fit))$coef[3,1]
-	B0err = attributes(summary(fit))$coef[1,2]
-	B1err = attributes(summary(fit))$coef[2,2]
-	predicted = (1/(1+exp(-B0+B1*log(s)/log(10))))
-	residuals = p-predicted
-	return(list(B0=B0,B0err=B0err,B1=B1,B1err=B1err,fitted_err = res_err,predictions=predicted, model=c("Logistic",paste("Intercept =",round(B0,digits=3)),paste("B1 =",round(B1,digits=3))),SSr=round(sum((residuals)^2)),SAr=round(sum(abs(residuals)))))
+        logistic = glm(p~log(s),family="binomial")
+        predlog = fitted(logistic)
+	return(list(predictions=predlog, B0 = logistic$coeff[1], B1=logistic$coeff[2] ,model=c( "Logistic", paste("Intercept =",round(logistic$coeff[1],digits=3)),paste("Coeff =",round(logistic$coeff[2],digits=3))),SSr=round(sum((fitted(logistic)-p)^2)),SAr=round(sum(abs(fitted(logistic)-p)))));
+#	require("bbmle")
+#	LL <- function(B0,B1,sigma) {
+#		R = p-(1/(1+exp(-B0+B1*log(s)/log(10))))
+#		R = suppressWarnings(dnorm(R,0,sigma,log=TRUE))
+#		-sum(R)
+#	}
+#	fit = mle2(LL,start=list(B0=2, B1=-1, sigma=0.25))
+#	thing = summary(fit)
+#	B0 = attributes(summary(fit))$coef[1,1]
+#	B1 = attributes(summary(fit))$coef[2,1]
+#	res_err = attributes(summary(fit))$coef[3,1]
+#	B0err = attributes(summary(fit))$coef[1,2]
+#	B1err = attributes(summary(fit))$coef[2,2]
+#	predicted = (1/(1+exp(-B0+B1*log(s)/log(10))))
+#	residuals = p-predicted
+#	return(list(B0=B0,B0err=B0err,B1=B1,B1err=B1err,fitted_err = res_err,predictions=predicted, model=c("Logistic",paste("Intercept =",round(B0,digits=3)),paste("B1 =",round(B1,digits=3))),SSr=round(sum((residuals)^2)),SAr=round(sum(abs(residuals)))))
 }
 
 bg__fit_ZIFA <- function(p,s) {
