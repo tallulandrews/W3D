@@ -38,8 +38,8 @@ bg__add_model_to_plot <- function(fitted_model, base_plot, lty=1, lwd=1, col="bl
 }
 
 bg__highlight_genes <- function (base_plot, genes, colour="purple", pch=16) {
-	if(!is.numeric(genes)) {
-		genes = match(genes, rownames(base_plot$data));
+	if(!is.numeric(genes) && !is.logical(genes)) {
+		genes = match(as.character(genes), rownames(base_plot$data));
 		nomatch = sum(is.na(genes));
 		if (nomatch > 0) {warning(paste(nomatch, " genes could not be matched to data, they will not be highlighted."));}
 		genes = genes[!is.na(genes)];
@@ -134,7 +134,7 @@ bg__calc_variables <- function(expr_mat, weights = 1) {
 		p = rowZero_wgt(expr_mat,weights)/rowSums(weights);
         	s = rowMeans_wgt(expr_mat,weights);
 		s_stderr = sqrt(rowVar_wgt(expr_mat,weights))/sqrt(rowSums(weights));
-		tmp = weights; tmp[tmp<1] = 0;
+		tmp = weights; tmp[expr_mat == 0] = 0;
 		s_stderr_nozero = sqrt(rowVar_wgt(expr_mat,tmp))/sqrt(rowSums(tmp));
 		p_stderr = sqrt(p*(1-p)/rowSums(weights));
 	} else {
@@ -153,7 +153,7 @@ bg__calc_variables <- function(expr_mat, weights = 1) {
 
 bg__invert_MM <- function (K, p) {K*(1-p)/(p)}
 bg__horizontal_residuals_MM_log10 <- function (K, p, s) {log(s)/log(10) - log(bg__invert_MM(K,p))/log(10)}
-bg__num.zero <- function(x){sum(x==0)}
+#bg__num.zero <- function(x){sum(x==0)}
 bg__fit_MM <- function (p,s) {
 #        fit = nls(p ~ 1-(s/((krt+s))),data.frame(s=s),start=list(krt=3))
 #	K_glm = glm(p ~ offset(-1*log(s)), family="binomial")
@@ -163,6 +163,9 @@ bg__fit_MM <- function (p,s) {
 #        predicted = fitted(fit)
 #        krt=summary(fit)$parameters[1,1]
 #	return(list(K=krt,Kerr=Kerr,predictions=predicted, model=c("MMenton",paste("Krt =",round(krt,digits=3))),SSr=round(sum((residuals(fit))^2)),SAr=round(sum(abs(residuals(fit))))))
+	if (length(p) != length(s)) {
+		stop(print("Error: p and s not same length. Cannot fit Michaelis-Menten."))
+	}
 	require("bbmle")
 	LL <- function(krt,sigma) {
 		R = p-(1-(s/((krt+s))))
@@ -180,6 +183,9 @@ bg__fit_MM <- function (p,s) {
 
 }
 bg__fit_logistic <- function(p,s) {
+	if (length(p) != length(s)) {
+		stop(print("Error: p and s not same length. Cannot fit Logistic Regression."))
+	}
         logistic = glm(p~log(s),family="binomial")
         predlog = fitted(logistic)
 	return(list(predictions=predlog, B0 = logistic$coeff[1], B1=logistic$coeff[2] ,model=c( "Logistic", paste("Intercept =",round(logistic$coeff[1],digits=3)),paste("Coeff =",round(logistic$coeff[2],digits=3))),SSr=round(sum((fitted(logistic)-p)^2)),SAr=round(sum(abs(fitted(logistic)-p)))));
@@ -202,6 +208,9 @@ bg__fit_logistic <- function(p,s) {
 }
 
 bg__fit_ZIFA <- function(p,s) {
+	if (length(p) != length(s)) {
+		stop(print("Error: p and s not same length. Cannot fit double exponential."))
+	}
 #	doubleXfit = nls(p ~ exp(-lambda*s*s),data.frame(s=s),start=list(lambda=0.01), control=list(maxiter=100), algorithm="port", lower=list(lambda=0));
 #	preddoubleX = fitted(doubleXfit);
 #	lambda=summary(doubleXfit)$parameters[1,1];
@@ -223,22 +232,22 @@ bg__fit_ZIFA <- function(p,s) {
 }
 
 # Normalization Functions
-bg__UQ <- function(x){quantile(x[x>0],0.75)};
-bg__filter_genes <- function(data) {
-        # get rid of genes with 0 expression
-#        filter <- apply(data, 1, function(x) length(x[x>5])>=2);
-	filter = rowSums(data > 5) >=2;
-        data = data[filter,];
-	return(data);
-}
+#bg__UQ <- function(x){quantile(x[x>0],0.75)};
+#bg__filter_genes <- function(data) {
+#        # get rid of genes with 0 expression
+##        filter <- apply(data, 1, function(x) length(x[x>5])>=2);
+#	filter = rowSums(data > 5) >=2;
+#        data = data[filter,];
+#	return(data);
+#}
 
-bg__filter_cells <- function(data,labels=NA, suppress.plot=FALSE, threshold=NA) {
-	num_detected =  colSums(data > 0);
+bg__filter_cells <- function(expr_mat,labels=NA, suppress.plot=FALSE, threshold=NA) {
+	num_detected =  colSums(expr_mat > 0);
 	if (!is.na(threshold)) {
 		low_quality = num_detected < threshold;
 	} else {
-		num_zero = colSums(data == 0);
-		cell_zero = num_zero/length(data[,1]);
+		num_zero = colSums(expr_mat == 0);
+		cell_zero = num_zero/length(expr_mat[,1]);
 		mu = mean(cell_zero);
 		sigma = sd(cell_zero);
 		# Deal with bi-modal
@@ -256,22 +265,22 @@ bg__filter_cells <- function(data,labels=NA, suppress.plot=FALSE, threshold=NA) 
 		low_quality = p.adjust(pnorm((cell_zero-mu)/sigma, lower.tail=F), method="fdr") < 0.05;
 	}
 	if (sum(low_quality) > 0) {
-		data = data[,!low_quality];
+		expr_mat = expr_mat[,!low_quality];
 		cell_zero = cell_zero[!low_quality];
 		if (!is.na(labels)) {labels = labels[!low_quality]}
 	}
-	return(list(data = data, labels = labels));
+	return(list(expr_mat = expr_mat, labels = labels));
 }
 
-bg__normalize <- function(data) {
-	# Combine UQ and detection rate adjusted normalization 
-	# Stephanie Hick, Mingziang Teng, Rafael A Irizarry "On the widespread and critical impact of systematic single-cell RNA-Seq data" http://dx.doi.org/10.1101/025528 
-	cell_zero = apply(data,2, bg__num.zero)/length(data[,1]);
-	uq = unlist(apply(data,2,bg__UQ));
-	normfactor = (uq/median(uq)) * (median(cell_zero)/cell_zero); 
-	data = t(t(data)/normfactor);
-	return(data);
-}
+#bg__normalize <- function(data) {
+#	# Combine UQ and detection rate adjusted normalization 
+#	# Stephanie Hick, Mingziang Teng, Rafael A Irizarry "On the widespread and critical impact of systematic single-cell RNA-Seq data" http://dx.doi.org/10.1101/025528 
+#	cell_zero = colSums(data == 0)/length(data[,1]);
+#	uq = unlist(apply(data,2,bg__UQ));
+#	normfactor = (uq/median(uq)) * (median(cell_zero)/cell_zero); 
+#	data = t(t(data)/normfactor);
+#	return(data);
+#}
 
 # DE Genes functions
 
@@ -351,7 +360,7 @@ bg__test_DE_S_equiv <- function (expr_mat, weights=1, fit=NA, method="propagate"
 	return(list(pval = pval, effect = effect_size))
 }
 
-bg__get_extreme_residuals <- function (expr_mat,weights, fit=NA, v_threshold=c(0.05,0.95), perc_most_extreme = NA, fdr_threshold = 0.1, direction="right", suppress.plot = FALSE) {
+bg__get_extreme_residuals <- function (expr_mat,weights=1, fit=NA, v_threshold=c(0.05,0.95), perc_most_extreme = NA, fdr_threshold = 0.1, direction="right", suppress.plot = FALSE) {
 	gene_info = bg__calc_variables(expr_mat, weights);
 	if (is.na(fit)) {
 		fit = bg__fit_MM(gene_info$p, gene_info$s);
@@ -397,7 +406,7 @@ bg__get_extreme_residuals <- function (expr_mat,weights, fit=NA, v_threshold=c(0
 	}
 }
 ##### Assembled Analysis Chunks ####
-W3D_Clean_Data <- function(data, labels = NA, is.counts=TRUE, suppress.plot=FALSE, pseudo_genes=NA, min_detected_genes=NA) {
+M3D_Clean_Data <- function(data, labels = NA, is.counts=TRUE, suppress.plot=FALSE, pseudo_genes=NA, min_detected_genes=NA) {
 	if (length(pseudo_genes) > 1) {
 		is_pseudo = rownames(data) %in% pseudo;
 	        data = data[!is_pseudo,];
@@ -427,7 +436,7 @@ W3D_Clean_Data <- function(data, labels = NA, is.counts=TRUE, suppress.plot=FALS
 #	return(list(data = expr_mat, labels=labels));
 }
 
-W3D_Dropout_Models <- function(data, weights = 1, xlim=NA) {
+M3D_Dropout_Models <- function(data, weights = 1, xlim=NA) {
 	BasePlot = bg__dropout_plot_base(data$data, weights = weights, xlim = xlim);
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	SCDE = bg__fit_logistic(BasePlot$P, BasePlot$S);
@@ -438,7 +447,7 @@ W3D_Dropout_Models <- function(data, weights = 1, xlim=NA) {
 	return(list(MMfit = MM, LogiFit = SCDE, ExpoFit = ZIFA));
 }
 
-W3D_Differential_Expression <- function(data, weights=1, xlim=NA, method="inverse", mt_method="bon", mt_threshold=0.05) {
+M3D_Differential_Expression <- function(data, weights=1, xlim=NA, method="inverse", mt_method="bon", mt_threshold=0.05) {
 	BasePlot = bg__dropout_plot_base(data, weights = weights, xlim = xlim);
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	sizeloc = bg__add_model_to_plot(MM, BasePlot, lty=1, lwd=2.5, col="black",legend_loc = "topright");
@@ -469,7 +478,7 @@ W3D_Differential_Expression <- function(data, weights=1, xlim=NA, method="invers
 	return(TABLE)
 }
 
-W3D_Expression_Heatmap <- function(Genes, Expr_Mat, cell_labels=NA, interesting_genes=NA, marker_genes=NA, outlier_cells=NA) {
+M3D_Expression_Heatmap <- function(Genes, Expr_Mat, cell_labels=NA, interesting_genes=NA, marker_genes=NA, outlier_cells=NA) {
 	# Converted known DE genes into heatmap labels 
 	gene_labels = rep(1, times = length(Genes));
 	if (is.na(interesting_genes)) {
@@ -492,7 +501,7 @@ W3D_Expression_Heatmap <- function(Genes, Expr_Mat, cell_labels=NA, interesting_
 	return(heatmap_output);
 }
 
-W3D_Get_Extremes <- function(data_list, weights, fdr_threshold = 0.1, percent = NA, v_threshold=c(0.05,0.95)) {
+M3D_Get_Extremes <- function(data_list, weights, fdr_threshold = 0.1, percent = NA, v_threshold=c(0.05,0.95)) {
 	BasePlot = bg__dropout_plot_base(data_list$data, weights = weights, xlim = NA);
 	MM = bg__fit_MM(BasePlot$P, BasePlot$S);
 	sizeloc = bg__add_model_to_plot(MM, BasePlot, lty=1, lwd=2.5, col="black",legend_loc = "topright");
